@@ -1,0 +1,8 @@
+git
+libgphoto2-dev
+libcap-dev
+python3-dev
+python3-libcamera
+python3-kms++
+python3-opencv
+python3-numpy

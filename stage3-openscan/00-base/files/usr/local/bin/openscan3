@@ -1,0 +1,4 @@
+#!/bin/bash
+set -e
+source /opt/openscan3/venv/bin/activate
+exec python -m openscan "$@"
