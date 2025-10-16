@@ -1,0 +1,19 @@
+[Unit]
+Description=Node-RED
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=openscan
+Group=openscan
+WorkingDirectory=/opt/openscan3
+Environment=NODE_OPTIONS=--max-old-space-size=256
+Environment=FLOWS=/opt/openscan3/.node-red/flows.json
+ExecStart=/usr/bin/env node-red-start --userDir /opt/openscan3/.node-red
+Restart=on-failure
+KillSignal=SIGINT
+SyslogIdentifier=node-red
+
+[Install]
+WantedBy=multi-user.target

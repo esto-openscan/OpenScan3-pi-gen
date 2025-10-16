@@ -8,7 +8,7 @@ install -m 644 -D files/etc/systemd/system/openscan3.service "${ROOTFS_DIR}/etc/
 # Sync application files into the target rootfs (outside chroot)
 rm -rf "${ROOTFS_DIR}/opt/openscan3"
 install -d "${ROOTFS_DIR}/opt/openscan3"
-rsync -av files/opt/openscan3/ "${ROOTFS_DIR}/opt/openscan3/"
+rsync -av --delete --exclude '.git' ../../OpenScan3/ "${ROOTFS_DIR}/opt/openscan3/"
 
 on_chroot <<'EOF'
 set -e
@@ -30,7 +30,14 @@ chown -R openscan:openscan /opt/openscan3
 runuser -u openscan -- python3 -m venv --system-site-packages /opt/openscan3/venv
 runuser -u openscan -- bash -c 'cd /opt/openscan3 && source venv/bin/activate && uv pip install .'
 
-
 chmod +x /usr/local/bin/openscan3
 systemctl enable openscan3
+
+# Allow 'openscan' to control the OpenScan3 service and read logs without a password
+cat >/etc/sudoers.d/openscan-nodered <<'SUDOERS'
+openscan ALL=(root) NOPASSWD:/bin/systemctl start openscan3,/bin/systemctl stop openscan3,/bin/systemctl restart openscan3,/bin/systemctl status openscan3
+openscan ALL=(root) NOPASSWD:/usr/bin/systemctl start openscan3,/usr/bin/systemctl stop openscan3,/usr/bin/systemctl restart openscan3,/usr/bin/systemctl status openscan3
+openscan ALL=(root) NOPASSWD:/bin/journalctl -u openscan3 *,/usr/bin/journalctl -u openscan3 *
+SUDOERS
+chmod 0440 /etc/sudoers.d/openscan-nodered
 EOF
