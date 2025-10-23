@@ -4,31 +4,71 @@ echo "Configuring OpenScan3 base components"
 
 install -m 755 -D files/usr/local/bin/openscan3 "${ROOTFS_DIR}/usr/local/bin/openscan3"
 install -m 644 -D files/etc/systemd/system/openscan3.service "${ROOTFS_DIR}/etc/systemd/system/openscan3.service"
+install -m 755 -D files/usr/local/sbin/openscan3-update "${ROOTFS_DIR}/usr/local/sbin/openscan3-update"
 
-# Sync application files into the target rootfs (outside chroot)
-rm -rf "${ROOTFS_DIR}/opt/openscan3"
+rm -rf "${ROOTFS_DIR}/opt/openscan3" "${ROOTFS_DIR}/opt/openscan3-src"
+
+# Create clean git repo copy (with .git) for future updater
+rsync -av --delete ../../OpenScan3/ "${ROOTFS_DIR}/opt/openscan3-src/"
+
+# Create working copy (without .git) used at runtime and for editable install
 install -d "${ROOTFS_DIR}/opt/openscan3"
-rsync -av --delete --exclude '.git' ../../OpenScan3/ "${ROOTFS_DIR}/opt/openscan3/"
+rsync -av --delete ../../OpenScan3/openscan/ "${ROOTFS_DIR}/opt/openscan3/openscan/"
+install -m 644 -D ../../OpenScan3/pyproject.toml "${ROOTFS_DIR}/opt/openscan3/pyproject.toml"
+install -m 644 -D ../../OpenScan3/LICENSE "${ROOTFS_DIR}/opt/openscan3/LICENSE"
+install -m 644 -D ../../OpenScan3/README.md "${ROOTFS_DIR}/opt/openscan3/README.md"
+
 
 on_chroot <<'EOF'
 set -e
 
 adduser --system --group --home /opt/openscan3 openscan
+# Add openscan user to relevant hardware groups
 for grp in camera video render plugdev input i2c spi gpio; do
   groupadd -f "$grp"
   adduser openscan "$grp"
 done
 
-curl -LsSf https://astral.sh/uv/install.sh | sh
-mv /root/.local/bin/uv /usr/local/bin/uv
+# Allow the default interactive user (if present) to edit settings without sudo
+if id -u pi >/dev/null 2>&1; then
+  adduser pi openscan || true
+fi
 
-chown -R openscan:openscan /opt/openscan3
+# Allow nginx/PHP to read settings and trigger updater
+if id -u www-data >/dev/null 2>&1; then
+  adduser www-data openscan || true
+fi
 
-# use this for deterministic and identical builds
-#runuser -u openscan -- /usr/local/bin/uv sync --frozen --project /opt/openscan3
-# use this to not hard pin package versions (will use latest compatible packages)
+
+# Create settings directory and copy defaults
+install -d -m 2775 /etc/openscan3
+chown -R openscan:openscan /etc/openscan3
+if [ -d /opt/openscan3-src/settings ]; then
+  cp -a /opt/openscan3-src/settings/. /etc/openscan3/
+fi
+
+# Ensure ownership after copy (cp -a preserves root:root from image build)
+chown -R openscan:openscan /etc/openscan3
+
+# Ensure group-writable perms and setgid on all subdirs
+find /etc/openscan3 -type d -exec chmod 2775 {} +
+find /etc/openscan3 -type f -exec chmod 664 {} +
+
+# Default ACL so new files remain group-writable for 'openscan'
+setfacl -Rm g::rwX /etc/openscan3
+setfacl -Rdm g::rwX /etc/openscan3
+setfacl -Rm m::rwX /etc/openscan3
+setfacl -Rdm m::rwX /etc/openscan3
+
+# Prepare application log directory for OpenScan3
+install -d -m 2775 /var/log/openscan3
+chown openscan:openscan /var/log/openscan3
+
+chown -R openscan:openscan /opt/openscan3 /opt/openscan3-src
+
+# install OpenScan3 as pip package
 runuser -u openscan -- python3 -m venv --system-site-packages /opt/openscan3/venv
-runuser -u openscan -- bash -c 'cd /opt/openscan3 && source venv/bin/activate && uv pip install .'
+runuser -u openscan -- bash -c 'cd /opt/openscan3 && source venv/bin/activate && pip install -e .'
 
 chmod +x /usr/local/bin/openscan3
 systemctl enable openscan3
@@ -38,6 +78,15 @@ cat >/etc/sudoers.d/openscan-nodered <<'SUDOERS'
 openscan ALL=(root) NOPASSWD:/bin/systemctl start openscan3,/bin/systemctl stop openscan3,/bin/systemctl restart openscan3,/bin/systemctl status openscan3
 openscan ALL=(root) NOPASSWD:/usr/bin/systemctl start openscan3,/usr/bin/systemctl stop openscan3,/usr/bin/systemctl restart openscan3,/usr/bin/systemctl status openscan3
 openscan ALL=(root) NOPASSWD:/bin/journalctl -u openscan3 *,/usr/bin/journalctl -u openscan3 *
+openscan ALL=(root) NOPASSWD:/sbin/shutdown,/sbin/reboot
+openscan ALL=(root) NOPASSWD:/usr/sbin/shutdown,/usr/sbin/reboot
 SUDOERS
 chmod 0440 /etc/sudoers.d/openscan-nodered
+
+# Allow running the updater from CLI (openscan) and via web (www-data)
+cat >/etc/sudoers.d/openscan-updater <<'SUDOERS'
+openscan ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update *
+www-data ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update *
+SUDOERS
+chmod 0440 /etc/sudoers.d/openscan-updater
 EOF

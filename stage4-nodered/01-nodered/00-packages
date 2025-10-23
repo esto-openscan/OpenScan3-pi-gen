@@ -3,3 +3,4 @@ nodejs
 npm
 build-essential
 curl
+php-fpm

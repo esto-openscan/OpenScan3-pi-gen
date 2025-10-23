@@ -1,0 +1,84 @@
+#!/bin/bash
+set -euo pipefail
+
+# Quick & dirty updater for OpenScan3 image
+# - Force-resets /opt/openscan3-src to origin/<branch>
+# - Syncs to /opt/openscan3 (no .git)
+# - Rebuilds venv and reinstalls package (editable)
+# - Resets /etc/openscan3 from src settings (unless --keep-settings)
+# - Updates Node-RED flows.json from src (unless --keep-flows)
+# Default branch: develop
+
+BRANCH="develop"
+KEEP_SETTINGS=0
+KEEP_FLOWS=0
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --branch)
+      BRANCH="$2"; shift 2;;
+    --keep-settings)
+      KEEP_SETTINGS=1; shift;;
+    --keep-flows)
+      KEEP_FLOWS=1; shift;;
+    -h|--help)
+      echo "Usage: $0 [--branch <name>] [--keep-settings] [--keep-flows]"; exit 0;;
+    *)
+      echo "Unknown arg: $1"; echo "Usage: $0 [--branch <name>] [--keep-settings] [--keep-flows]"; exit 1;;
+  esac
+done
+
+SRC_DIR="/opt/openscan3-src"
+DST_DIR="/opt/openscan3"
+SETTINGS_DIR="/etc/openscan3"
+FLOWS_DST="${DST_DIR}/.node-red/flows.json"
+FLOWS_SRC="${SRC_DIR}/flows/flows.json"
+
+log() { echo "[openscan3-update] $*"; }
+
+log "Stopping services..."
+systemctl stop openscan3 || true
+systemctl stop node-red-openscan || true
+
+log "Updating source repo at ${SRC_DIR} to origin/${BRANCH}..."
+runuser -u openscan -- bash -lc "set -e; cd '${SRC_DIR}'; git fetch --all --prune; git checkout -B '${BRANCH}' 'origin/${BRANCH}'; git reset --hard 'origin/${BRANCH}'; git clean -fdx"
+
+log "Syncing source to working tree ${DST_DIR} (excluding .git)..."
+rsync -a --delete --exclude '.git' "${SRC_DIR}/" "${DST_DIR}/"
+
+log "Recreating venv and reinstalling package..."
+rm -rf "${DST_DIR}/venv"
+runuser -u openscan -- python3 -m venv --system-site-packages "${DST_DIR}/venv"
+runuser -u openscan -- bash -lc "source '${DST_DIR}/venv/bin/activate' && pip install --upgrade pip && pip install -e '${DST_DIR}'"
+
+if [[ ${KEEP_SETTINGS} -eq 0 ]]; then
+  log "Resetting settings in ${SETTINGS_DIR} from ${SRC_DIR}/settings (if present)..."
+  find "${SETTINGS_DIR}" -mindepth 1 -maxdepth 1 -exec rm -rf {} + || true
+  if [[ -d "${SRC_DIR}/settings" ]]; then
+    cp -a "${SRC_DIR}/settings/." "${SETTINGS_DIR}/"
+  fi
+  chown -R openscan:openscan "${SETTINGS_DIR}"
+  find "${SETTINGS_DIR}" -type d -exec chmod 2775 {} +
+  find "${SETTINGS_DIR}" -type f -exec chmod 664 {} +
+  setfacl -Rm g::rwX "${SETTINGS_DIR}" || true
+  setfacl -Rdm g::rwX "${SETTINGS_DIR}" || true
+  setfacl -Rm m::rwX "${SETTINGS_DIR}" || true
+  setfacl -Rdm m::rwX "${SETTINGS_DIR}" || true
+fi
+
+if [[ ${KEEP_FLOWS} -eq 0 ]]; then
+  if [[ -f "${FLOWS_SRC}" ]]; then
+    log "Updating Node-RED flows from ${FLOWS_SRC} -> ${FLOWS_DST}"
+    install -d "$(dirname "${FLOWS_DST}")"
+    install -m 644 "${FLOWS_SRC}" "${FLOWS_DST}"
+    chown openscan:openscan "${FLOWS_DST}" || true
+  else
+    log "No flows.json found at ${FLOWS_SRC}; leaving existing flows intact"
+  fi
+fi
+
+log "Restarting services..."
+systemctl restart openscan3 || true
+systemctl restart node-red-openscan || true
+
+log "Done."

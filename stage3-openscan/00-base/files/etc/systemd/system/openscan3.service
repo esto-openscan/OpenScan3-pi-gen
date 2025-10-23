@@ -11,6 +11,9 @@ Group=openscan
 WorkingDirectory=/opt/openscan3
 Environment="PATH=/opt/openscan3/venv/bin:/usr/local/bin:/usr/bin:/bin"
 Environment="VIRTUAL_ENV=/opt/openscan3/venv"
+Environment="OPENSCAN_LOG_DIR=/var/log/openscan3"
+Environment="OPENSCAN_SETTINGS_DIR=/etc/openscan3"
+
 
 ExecStart=/usr/local/bin/openscan3 serve
 Restart=on-failure
