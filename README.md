@@ -1,6 +1,6 @@
 # OpenScan3 Pi Image Builder
 
-This repository wraps [Raspberry Pi OS pi-gen](https://github.com/RPi-Distro/pi-gen) as a submodule and adds custom stages for OpenScan3 camera setups. It produces Raspberry Pi OS Lite based images with camera-specific tweaks and the OpenScan3 firmware.
+This repository wraps [Raspberry Pi OS pi-gen](https://github.com/RPi-Distro/pi-gen) and [OpenScan3](https://github.com/OpenScan-org/OpenScan3)  as a submodules and adds custom stages for camera setups and a preliminary [Node-RED](https://nodered.org/) web frontend. It produces Raspberry Pi OS Lite based images with camera-specific tweaks and the OpenScan3 firmware.
 
 ## Repository Layout
 
@@ -59,9 +59,12 @@ rm -rf pi-gen/work pi-gen/deploy
 
 ## Releasing Updates
 
-1. Pull upstream `pi-gen` updates:
+1. Pull upstream `pi-gen` and `OpenScan3` updates:
    ```bash
-   git submodule update --remote --merge
+   git submodule sync --recursive 
+   git submodule update --remote --checkout --recursive # checkout instead of merging local branches 
+   git add pi-gen OpenScan3 
+   git commit -m "Update submodules (pi-gen@arm64, OpenScan3@feature/os3-package)" 
    ```
 2. Rebuild target images.
 3. Publish resulting `.img` files from `pi-gen/deploy/`.

@@ -10,7 +10,7 @@ Group=openscan
 WorkingDirectory=/opt/openscan3
 Environment=NODE_OPTIONS=--max-old-space-size=256
 Environment=FLOWS=/opt/openscan3/.node-red/flows.json
-ExecStart=/usr/bin/env node-red-start --userDir /opt/openscan3/.node-red
+ExecStart=/usr/bin/env node-red --userDir /opt/openscan3/.node-red
 Restart=on-failure
 KillSignal=SIGINT
 SyslogIdentifier=node-red
