@@ -8,15 +8,13 @@ install -m 755 -D files/usr/local/sbin/openscan3-update "${ROOTFS_DIR}/usr/local
 
 rm -rf "${ROOTFS_DIR}/opt/openscan3" "${ROOTFS_DIR}/opt/openscan3-src"
 
-# Create clean git repo copy (with .git) for future updater
-rsync -av --delete ../../OpenScan3/ "${ROOTFS_DIR}/opt/openscan3-src/"
+# Clone clean git repo copy (with .git) for future updater
+git clone https://github.com/esto-openscan/OpenScan3.git "${ROOTFS_DIR}/opt/openscan3-src"
+git -C "${ROOTFS_DIR}/opt/openscan3-src" checkout feature/os3-package
 
-# Create working copy (without .git) used at runtime and for editable install
+# Create working copy (with .git) used at runtime and for editable install
 install -d "${ROOTFS_DIR}/opt/openscan3"
-rsync -av --delete ../../OpenScan3/openscan/ "${ROOTFS_DIR}/opt/openscan3/openscan/"
-install -m 644 -D ../../OpenScan3/pyproject.toml "${ROOTFS_DIR}/opt/openscan3/pyproject.toml"
-install -m 644 -D ../../OpenScan3/LICENSE "${ROOTFS_DIR}/opt/openscan3/LICENSE"
-install -m 644 -D ../../OpenScan3/README.md "${ROOTFS_DIR}/opt/openscan3/README.md"
+rsync -av --delete "${ROOTFS_DIR}/opt/openscan3-src/" "${ROOTFS_DIR}/opt/openscan3/"
 
 
 on_chroot <<'EOF'
@@ -43,9 +41,7 @@ fi
 # Create settings directory and copy defaults
 install -d -m 2775 /etc/openscan3
 chown -R openscan:openscan /etc/openscan3
-if [ -d /opt/openscan3-src/settings ]; then
-  cp -a /opt/openscan3-src/settings/. /etc/openscan3/
-fi
+cp -a /opt/openscan3-src/settings/. /etc/openscan3/
 
 # Ensure ownership after copy (cp -a preserves root:root from image build)
 chown -R openscan:openscan /etc/openscan3

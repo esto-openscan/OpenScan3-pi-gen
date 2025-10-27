@@ -7,10 +7,10 @@ Wants=network-online.target
 Type=simple
 User=openscan
 Group=openscan
-WorkingDirectory=/opt/openscan3
+WorkingDirectory=/opt/openscan3/node-red
 Environment=NODE_OPTIONS=--max-old-space-size=256
-Environment=FLOWS=/opt/openscan3/.node-red/flows.json
-ExecStart=/usr/bin/env node-red --userDir /opt/openscan3/.node-red
+Environment=FLOWS=/opt/openscan3/node-red/flows.json
+ExecStart=/usr/bin/env node-red --userDir /opt/openscan3/node-red --settings /opt/openscan3/node-red/settings.js
 Restart=on-failure
 KillSignal=SIGINT
 SyslogIdentifier=node-red

@@ -2,11 +2,10 @@
 
 echo "Configuring Node-RED"
 
-# Install service unit, nginx site, and default flow into target rootfs
+# Install service unit, nginx site, and Node-RED assets into target rootfs
 install -m 644 -D files/etc/systemd/system/node-red-openscan.service "${ROOTFS_DIR}/etc/systemd/system/node-red-openscan.service"
 install -m 644 -D files/etc/nginx/sites-available/default "${ROOTFS_DIR}/etc/nginx/sites-available/default"
-install -m 644 -D "${BASE_DIR}/../OpenScan3/flows/flows.json" "${ROOTFS_DIR}/opt/openscan3/.node-red/flows.json"
-install -m 644 -D files/opt/openscan3/.node-red/settings.js "${ROOTFS_DIR}/opt/openscan3/.node-red/settings.js"
+install -d -m 755 "${ROOTFS_DIR}/opt/openscan3/node-red"
 install -m 644 -D files/var/www/openscan-admin/index.php "${ROOTFS_DIR}/var/www/openscan-admin/index.php"
 
 on_chroot <<'EOF'
@@ -15,8 +14,8 @@ set -x
 
 # Persist log outside /var/log (export-image truncates /var/log)
 install -d -m 755 /var/lib/openscan3/install
-# Ensure Node-RED userDir exists and is owned by the openscan user
-install -d -m 755 /opt/openscan3/.node-red
+# Ensure Node-RED directory exists and maintain ownership
+install -d -m 755 /opt/openscan3/node-red
 chown -R openscan:openscan /opt/openscan3
 
 # Allow web server to access settings and trigger updater
@@ -39,8 +38,8 @@ npm config set fund false
 npm config set audit false
 npm install -g node-red --unsafe-perm --loglevel verbose
 
-# Install dashboard palette in the userDir as 'openscan'
-runuser -u openscan -- bash -lc 'cd /opt/openscan3/.node-red && npm install --no-fund --no-audit @flowfuse/node-red-dashboard'
+# Install listed palettes in the userDir as 'openscan'
+runuser -u openscan -- bash -lc 'set -e; cd /opt/openscan3/node-red; if [[ -f nodered-plugins.txt ]]; then while IFS= read -r raw || [[ -n "${raw}" ]]; do plugin=$(printf "%s" "${raw}" | tr -d "\r" | xargs); [[ -z "${plugin}" || "${plugin:0:1}" == "#" ]] && continue; npm install --no-fund --no-audit "${plugin}"; done < nodered-plugins.txt; fi'
 
 # Ensure nginx default site is enabled (symlink to sites-available/default)
 ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/default

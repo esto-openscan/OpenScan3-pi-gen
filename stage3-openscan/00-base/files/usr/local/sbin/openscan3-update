@@ -6,12 +6,12 @@ set -euo pipefail
 # - Syncs to /opt/openscan3 (no .git)
 # - Rebuilds venv and reinstalls package (editable)
 # - Resets /etc/openscan3 from src settings (unless --keep-settings)
-# - Updates Node-RED flows.json from src (unless --keep-flows)
+# - Refreshes Node-RED directory (unless --keep-nodered)
 # Default branch: develop
 
-BRANCH="develop"
+BRANCH=""
 KEEP_SETTINGS=0
-KEEP_FLOWS=0
+KEEP_NODERED=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -19,20 +19,35 @@ while [[ $# -gt 0 ]]; do
       BRANCH="$2"; shift 2;;
     --keep-settings)
       KEEP_SETTINGS=1; shift;;
-    --keep-flows)
-      KEEP_FLOWS=1; shift;;
+    --keep-nodered)
+      KEEP_NODERED=1; shift;;
     -h|--help)
-      echo "Usage: $0 [--branch <name>] [--keep-settings] [--keep-flows]"; exit 0;;
+      echo "Usage: $0 [--branch <name>] [--keep-settings] [--keep-nodered]"; exit 0;;
     *)
-      echo "Unknown arg: $1"; echo "Usage: $0 [--branch <name>] [--keep-settings] [--keep-flows]"; exit 1;;
+      echo "Unknown arg: $1"; echo "Usage: $0 [--branch <name>] [--keep-settings] [--keep-nodered]"; exit 1;;
   esac
 done
 
 SRC_DIR="/opt/openscan3-src"
 DST_DIR="/opt/openscan3"
 SETTINGS_DIR="/etc/openscan3"
-FLOWS_DST="${DST_DIR}/.node-red/flows.json"
-FLOWS_SRC="${SRC_DIR}/flows/flows.json"
+NODE_RED_DIR="${DST_DIR}/node-red"
+NODE_RED_FLOW_TARGET="${NODE_RED_DIR}/flows.json"
+NODE_RED_PLUGIN_FILE="${NODE_RED_DIR}/nodered-plugins.txt"
+FLOWS_SRC="${SRC_DIR}/node-red/flows.json"
+FLOWS_DST="${NODE_RED_FLOW_TARGET}"
+
+# checkout branch as in src git repo or fallback to develop branch
+if [[ -z "${BRANCH}" && -d "${SRC_DIR}/.git" ]]; then
+  CURRENT_BRANCH=$(runuser -u openscan -- git -C "${SRC_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
+  if [[ -n "${CURRENT_BRANCH}" && "${CURRENT_BRANCH}" != "HEAD" ]]; then
+    BRANCH="${CURRENT_BRANCH}"
+  fi
+fi
+
+: "${BRANCH:=develop}"
+
+git config --system --add safe.directory "${SRC_DIR}" || true
 
 log() { echo "[openscan3-update] $*"; }
 
@@ -43,13 +58,33 @@ systemctl stop node-red-openscan || true
 log "Updating source repo at ${SRC_DIR} to origin/${BRANCH}..."
 runuser -u openscan -- bash -lc "set -e; cd '${SRC_DIR}'; git fetch --all --prune; git checkout -B '${BRANCH}' 'origin/${BRANCH}'; git reset --hard 'origin/${BRANCH}'; git clean -fdx"
 
-log "Syncing source to working tree ${DST_DIR} (excluding .git)..."
-rsync -a --delete --exclude '.git' "${SRC_DIR}/" "${DST_DIR}/"
+log "Syncing source to working tree ${DST_DIR} (excluding .git${KEEP_NODERED:+, node-red})..."
+RSYNC_ARGS=(-a --delete --exclude '.git')
+if [[ ${KEEP_NODERED} -eq 1 ]]; then
+  RSYNC_ARGS+=(--exclude 'node-red/')
+fi
+rsync "${RSYNC_ARGS[@]}" "${SRC_DIR}/" "${DST_DIR}/"
+
+log "Ensuring Node-RED runtime layout..."
+install -d "${NODE_RED_DIR}"
+chown -R openscan:openscan "${NODE_RED_DIR}"
 
 log "Recreating venv and reinstalling package..."
 rm -rf "${DST_DIR}/venv"
 runuser -u openscan -- python3 -m venv --system-site-packages "${DST_DIR}/venv"
-runuser -u openscan -- bash -lc "source '${DST_DIR}/venv/bin/activate' && pip install --upgrade pip && pip install -e '${DST_DIR}'"
+PYPROJECT_PATH="${DST_DIR}/pyproject.toml"
+SETUP_PATH="${DST_DIR}/setup.py"
+REQUIREMENTS_PATH="${DST_DIR}/requirements.txt"
+
+if [[ -f "${PYPROJECT_PATH}" || -f "${SETUP_PATH}" ]]; then
+  log "Detected package metadata; installing editable package"
+  runuser -u openscan -- bash -lc "set -e; source '${DST_DIR}/venv/bin/activate'; pip install --upgrade pip; pip install -e '${DST_DIR}'"
+elif [[ -f "${REQUIREMENTS_PATH}" ]]; then
+  log "No pyproject/setup.py found; installing dependencies from requirements.txt"
+  runuser -u openscan -- bash -lc "set -e; source '${DST_DIR}/venv/bin/activate'; pip install --upgrade pip; pip install -r '${REQUIREMENTS_PATH}'"
+else
+  log "WARNING: No packaging metadata or requirements.txt found; skipping Python package installation"
+fi
 
 if [[ ${KEEP_SETTINGS} -eq 0 ]]; then
   log "Resetting settings in ${SETTINGS_DIR} from ${SRC_DIR}/settings (if present)..."
@@ -66,15 +101,29 @@ if [[ ${KEEP_SETTINGS} -eq 0 ]]; then
   setfacl -Rdm m::rwX "${SETTINGS_DIR}" || true
 fi
 
-if [[ ${KEEP_FLOWS} -eq 0 ]]; then
+if [[ ${KEEP_NODERED} -eq 0 ]]; then
   if [[ -f "${FLOWS_SRC}" ]]; then
     log "Updating Node-RED flows from ${FLOWS_SRC} -> ${FLOWS_DST}"
     install -d "$(dirname "${FLOWS_DST}")"
     install -m 644 "${FLOWS_SRC}" "${FLOWS_DST}"
-    chown openscan:openscan "${FLOWS_DST}" || true
   else
     log "No flows.json found at ${FLOWS_SRC}; leaving existing flows intact"
   fi
+else
+  log "--keep-nodered set; preserving existing Node-RED directory"
+fi
+
+if [[ -f "${FLOWS_DST}" ]]; then
+  chown openscan:openscan "${FLOWS_DST}" || true
+fi
+
+if [[ ${KEEP_NODERED} -eq 0 && -f "${NODE_RED_PLUGIN_FILE}" ]]; then
+  log "Installing Node-RED plugins from ${NODE_RED_PLUGIN_FILE}"
+  runuser -u openscan -- bash -lc "set -e; cd '${NODE_RED_DIR}'; while IFS= read -r raw || [[ -n \"\${raw}\" ]]; do plugin=\$(printf '%s' \"\${raw}\" | tr -d '\\r' | xargs); if [[ -z \"\${plugin}\" || \"\${plugin:0:1}\" == '#' ]]; then continue; fi; npm install --no-fund --no-audit \"\${plugin}\"; done < '${NODE_RED_PLUGIN_FILE}'"
+elif [[ ${KEEP_NODERED} -eq 1 ]]; then
+  log "Skipping Node-RED plugin installation because --keep-nodered is set"
+else
+  log "No Node-RED plugin list found at ${NODE_RED_PLUGIN_FILE}; skipping plugin installation"
 fi
 
 log "Restarting services..."

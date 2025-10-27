@@ -30,6 +30,6 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
     source "$cam_config"
     ${SUDO:+$SUDO }CAMERA_TYPE=$CAMERA_TYPE IMG_NAME=$IMG_NAME \
          STAGE_LIST="$STAGE_LIST" \
-         TARGET_HOSTNAME="${TARGET_HOSTNAME:-openscan-alpha}" \
+         TARGET_HOSTNAME="${TARGET_HOSTNAME:-openscan3-alpha}" \
          "$PI_GEN_DIR"/build.sh
 done

@@ -2,7 +2,90 @@
 declare(strict_types=1);
 @set_time_limit(1800);
 
+if (PHP_SAPI !== 'cli') {
+    @ini_set('output_buffering', 'off');
+    @ini_set('zlib.output_compression', '0');
+}
+while (ob_get_level() > 0) {
+    @ob_end_flush();
+}
+ob_implicit_flush(true);
+
+if (!headers_sent()) {
+    header('Content-Type: text/html; charset=utf-8');
+    header('Cache-Control: no-cache, no-store, must-revalidate');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    header('X-Accel-Buffering: no');
+}
+
 function h($s) { return htmlspecialchars((string)$s, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8'); }
+
+function flush_buffers(): void
+{
+    @ob_flush();
+    flush();
+}
+
+function begin_stream_output(): void
+{
+    echo "<!-- stream-start -->\n";
+    flush_buffers();
+}
+
+function stream_command(string $cmdline): int
+{
+    $descriptors = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+
+    $pipes = [];
+    $process = proc_open($cmdline, $descriptors, $pipes);
+    if (!is_resource($process)) {
+        echo h("[openscan3-admin] Failed to start update command: {$cmdline}\n");
+        return 1;
+    }
+
+    fclose($pipes[0]);
+    stream_set_blocking($pipes[1], false);
+    stream_set_blocking($pipes[2], false);
+
+    $exitCode = 0;
+    do {
+        $stdout = stream_get_contents($pipes[1]);
+        if ($stdout !== false && $stdout !== '') {
+            echo h($stdout);
+            flush_buffers();
+        }
+
+        $stderr = stream_get_contents($pipes[2]);
+        if ($stderr !== false && $stderr !== '') {
+            echo h($stderr);
+            flush_buffers();
+        }
+
+        $status = proc_get_status($process);
+        if (!$status['running']) {
+            $exitCode = $status['exitcode'];
+            break;
+        }
+        flush_buffers();
+        usleep(100000);
+    } while (true);
+
+    fclose($pipes[1]);
+    fclose($pipes[2]);
+    proc_close($process);
+
+    if ($exitCode !== 0) {
+        echo h("\n[openscan3-admin] Update command exited with code {$exitCode}.\n");
+    }
+    flush_buffers();
+
+    return $exitCode;
+}
 
 $action = $_GET['action'] ?? ($_POST['action'] ?? '');
 
@@ -27,20 +110,20 @@ if ($action === 'download_flows') {
     exit;
 }
 
-$updateOutput = '';
+$updateCmdline = null;
 if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $branch = trim((string)($_POST['branch'] ?? 'develop'));
     if ($branch === '') { $branch = 'develop'; }
     $keepSettings = isset($_POST['keep_settings']);
-    $keepFlows = isset($_POST['keep_flows']);
+    $keepNodeRed = isset($_POST['keep_nodered']);
 
-    $cmd = '/usr/bin/sudo /usr/local/sbin/openscan3-update';
+    $cmd = '/usr/bin/sudo -n /usr/local/sbin/openscan3-update';
     $args = [];
     if ($branch !== '') { $args[] = '--branch ' . escapeshellarg($branch); }
     if ($keepSettings) { $args[] = '--keep-settings'; }
-    if ($keepFlows) { $args[] = '--keep-flows'; }
+    if ($keepNodeRed) { $args[] = '--keep-nodered'; }
     $cmdline = $cmd . ' ' . implode(' ', $args) . ' 2>&1';
-    $updateOutput = shell_exec($cmdline) ?? '';
+    $updateCmdline = $cmdline;
 }
 
 $hostname = trim(shell_exec('hostname 2>/dev/null') ?? '');
@@ -93,13 +176,13 @@ $hostname = trim(shell_exec('hostname 2>/dev/null') ?? '');
           <input id="branch" name="branch" type="text" value="<?= h($_POST['branch'] ?? 'develop') ?>">
         </div>
         <div class="row">
-          <div class="warning">Keeping settings or flows can leave stale data behind and trigger hard-to-debug issues. Leave both unchecked unless you know what you're doing.</div>
+          <div class="warning">Keeping settings or flows can leave stale data behind and trigger hard-to-debug issues. Leave both unchecked unless you know what you're doing. Good luck.</div>
         </div>
         <div class="row">
           <label><input type="checkbox" name="keep_settings" <?= isset($_POST['keep_settings']) ? 'checked' : '' ?>> Keep settings (/etc/openscan3)</label>
         </div>
         <div class="row">
-          <label><input type="checkbox" name="keep_flows" <?= isset($_POST['keep_flows']) ? 'checked' : '' ?>> Keep flows (/opt/openscan3/.node-red/flows.json)</label>
+          <label><input type="checkbox" name="keep_nodered" <?= isset($_POST['keep_nodered']) ? 'checked' : '' ?>> Keep Node-RED state (/opt/openscan3/node-red)</label>
         </div>
         <div class="row">
           <button class="btn primary" type="submit">Run Update</button>
@@ -109,9 +192,14 @@ $hostname = trim(shell_exec('hostname 2>/dev/null') ?? '');
     </div>
   </div>
 
-  <?php if ($updateOutput !== ''): ?>
+  <?php if ($updateCmdline !== null): ?>
     <h3>Update Output</h3>
-    <div class="output"><?= h($updateOutput) ?></div>
+    <div class="output">
+<?php
+    begin_stream_output();
+    stream_command($updateCmdline);
+?>
+    </div>
   <?php endif; ?>
 </div>
 </body>
