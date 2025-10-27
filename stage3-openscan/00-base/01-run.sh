@@ -9,8 +9,8 @@ install -m 755 -D files/usr/local/sbin/openscan3-update "${ROOTFS_DIR}/usr/local
 rm -rf "${ROOTFS_DIR}/opt/openscan3" "${ROOTFS_DIR}/opt/openscan3-src"
 
 # Clone clean git repo copy (with .git) for future updater
-git clone https://github.com/esto-openscan/OpenScan3.git "${ROOTFS_DIR}/opt/openscan3-src"
-git -C "${ROOTFS_DIR}/opt/openscan3-src" checkout feature/os3-package
+git clone https://github.com/OpenScan-org/OpenScan3.git "${ROOTFS_DIR}/opt/openscan3-src"
+git -C "${ROOTFS_DIR}/opt/openscan3-src" checkout develop
 
 # Create working copy (with .git) used at runtime and for editable install
 install -d "${ROOTFS_DIR}/opt/openscan3"
