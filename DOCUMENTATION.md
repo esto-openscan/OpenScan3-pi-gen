@@ -66,17 +66,16 @@ Your build variant is chosen via the `.env` config used at build time (see `came
 - Open `http://<pi>/` → redirects to `/dashboard` (Node-RED Dashboard from `OpenScan3/flows/flows.json`).
   - Node-RED editor: `http://<pi>/nodered`.
     - Note: The editor has no password by default in this image. Consider adding credentials in `/opt/openscan3/.node-red/settings.js` and restarting the service.
+- OpenAPI JSON: `http://<pi>:8000/latest/openapi.json`
+- Typical endpoints referenced by the UI: `/latest/device/info`, camera settings endpoints, etc. (see calls in `OpenScan3/flows/flows.json`).
 
+## Quick & Dirty Updater (experimental)
 - Admin page (experimental): `http://<pi>/admin/`
   - Minimal PHP page to:
     - Download settings as tar.gz (`/etc/openscan3`).
     - Download Node-RED `flows.json`.
     - Trigger a quick update (see below). Default branch is `develop`.
   - Security: No authentication by default. Use only on trusted networks.
-
-## Quick & Dirty Updater (experimental)
-  - OpenAPI JSON: `http://<pi>:8000/latest/openapi.json`
-- Typical endpoints referenced by the UI: `/latest/device/info`, camera settings endpoints, etc. (see calls in `OpenScan3/flows/flows.json`).
 
 ## Services and logs
 
