@@ -4,8 +4,6 @@ This repository wraps [Raspberry Pi OS pi-gen](https://github.com/RPi-Distro/pi-
 
 For instructions on using the generated images, see the [image documentation](DOCUMENTATION.md).
 
-This is a work in progress and should be considered experimental.
-
 ## Repository Layout
 
 - `pi-gen/` &mdash; upstream pi-gen submodule. Do not modify directly; keep customizations outside.
