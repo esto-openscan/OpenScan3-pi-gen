@@ -2,6 +2,8 @@
 
 This repository wraps [Raspberry Pi OS pi-gen](https://github.com/RPi-Distro/pi-gen) and [OpenScan3](https://github.com/OpenScan-org/OpenScan3)  as a submodules and adds custom stages for camera setups and a preliminary [Node-RED](https://nodered.org/) web frontend. It produces Raspberry Pi OS Lite based images with camera-specific tweaks and the OpenScan3 firmware.
 
+For instructions on using the generated images, see the [image documentation](DOCUMENTATION.md).
+
 This is a work in progress and should be considered experimental.
 
 ## Repository Layout

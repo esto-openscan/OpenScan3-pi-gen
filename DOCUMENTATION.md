@@ -7,7 +7,7 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 - Flash the image using Raspberry Pi Imager and, in Advanced options, set the hostname, create a user (do NOT name it `openscan`), and configure Wi‑Fi.
 - Optionally enable SSH in Raspberry Pi Imager for headless access.
 - Boot the Pi, connect it to your network (Ethernet recommended for first boot).
-- Open a browser to `http://openscan-alpha/` or the Pi’s IP.
+- Open a browser to `http://openscan3-alpha/` or the Pi’s IP.
 - You’ll land on the OpenScan dashboard at `/dashboard`.
 - API is available on the device at `http://<pi>:8000/latest`.
 - API documentation is available at `http://<pi>:8000/latest/docs`.
@@ -18,12 +18,12 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 - **OpenScan3 service**
   - Installed to `/opt/openscan3` and run in a Python venv.
   - Systemd unit: `openscan3.service` (see `stage3-openscan/00-base/files/etc/systemd/system/openscan3.service`).
-  - Default API base used by the UI: `http://localhost:8000` (see references in `OpenScan3/flows/flows.json`).
+  - Default API base used by the UI: `http://localhost:8000`
 
 - **Node-RED web UI**
   - Runs as systemd service `node-red-openscan.service` (see `stage4-nodered/01-nodered/files/etc/systemd/system/node-red-openscan.service`).
-  - User directory: `/opt/openscan3/.node-red` with `flows.json` and `settings.js`.
-  - Editor is enabled at `/nodered` and dashboard at `/dashboard` (see `stage4-nodered/01-nodered/files/opt/openscan3/.node-red/settings.js`).
+  - User directory: `/opt/openscan3/node-red` with `flows.json` and `settings.js`.
+  - Editor is enabled at `/nodered` and dashboard at `/dashboard`
 
 - **nginx reverse proxy**
   - Listens on port 80 and proxies all paths to Node-RED on `127.0.0.1:1880`.
@@ -31,6 +31,9 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 
 - **Persistent settings**
   - OpenScan settings are stored in `/etc/openscan3` (created and made group-writable by `stage3-openscan/00-base/01-run.sh`).
+
+- **Updater**
+  - A simple Updater for OpenScan3 and the Node-RED flows is reachable at `/admin`
 
 ## Supported variants (camera-specific)
 
@@ -55,24 +58,25 @@ Your build variant is chosen via the `.env` config used at build time (see `came
 
 ## First boot and network access
 
-- **Hostname**: Use the hostname you set in Raspberry Pi Imager. If not set, it defaults to `openscan`.
 - **User account (important)**: Use the user you created in Raspberry Pi Imager. Do not create a user named `openscan` — this name is reserved for the internal service account created by the image.
 - **Network**:
   - If Wi‑Fi was configured in Raspberry Pi Imager, the Pi will join that network on first boot.
-- **Discovery**: Default hostname is `http://openscan-alpha/` and in networks with mDNS enabled it will be discoverable as `http://openscan-alpha.local/`.
+- **Hostname**: Use the hostname you set in Raspberry Pi Imager. If not set, it defaults to `openscan3-alpha`.
+- **Discovery**: Default hostname is `http://openscan3-alpha/` and in networks with mDNS enabled it will be discoverable as `http://openscan3-alpha.local/`.
 
 ## Accessing the web UI
 
 - Open `http://<pi>/` → redirects to `/dashboard` (Node-RED Dashboard from `OpenScan3/flows/flows.json`).
   - Node-RED editor: `http://<pi>/nodered`.
     - Note: The editor has no password by default in this image. Consider adding credentials in `/opt/openscan3/.node-red/settings.js` and restarting the service.
+- FastAPI generated OpenAPI docs: `http://<pi>:8000/latest/docs`
 - OpenAPI JSON: `http://<pi>:8000/latest/openapi.json`
 - Typical endpoints referenced by the UI: `/latest/device/info`, camera settings endpoints, etc. (see calls in `OpenScan3/flows/flows.json`).
 
-## Quick & Dirty Updater (experimental)
+## Updater (experimental)
 - Admin page (experimental): `http://<pi>/admin/`
   - Minimal PHP page to:
-    - Download settings as tar.gz (`/etc/openscan3`).
+    - Download OpenScan3 device settings as tar.gz (`/etc/openscan3`).
     - Download Node-RED `flows.json`.
     - Trigger a quick update (see below). Default branch is `develop`.
   - Security: No authentication by default. Use only on trusted networks.
@@ -122,7 +126,7 @@ sudo rsync -av --delete --exclude '.git' /opt/openscan3-src/ /opt/openscan3/
 sudo systemctl restart openscan3
 ```
 
-### Quick & Dirty Updater (highly experimental)
+### Updater (highly experimental)
 
 - CLI:
   ```bash
