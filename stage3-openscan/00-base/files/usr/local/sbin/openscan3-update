@@ -72,19 +72,8 @@ chown -R openscan:openscan "${NODE_RED_DIR}"
 log "Recreating venv and reinstalling package..."
 rm -rf "${DST_DIR}/venv"
 runuser -u openscan -- python3 -m venv --system-site-packages "${DST_DIR}/venv"
-PYPROJECT_PATH="${DST_DIR}/pyproject.toml"
-SETUP_PATH="${DST_DIR}/setup.py"
-REQUIREMENTS_PATH="${DST_DIR}/requirements.txt"
-
-if [[ -f "${PYPROJECT_PATH}" || -f "${SETUP_PATH}" ]]; then
-  log "Detected package metadata; installing editable package"
-  runuser -u openscan -- bash -lc "set -e; source '${DST_DIR}/venv/bin/activate'; pip install --upgrade pip; pip install -e '${DST_DIR}'"
-elif [[ -f "${REQUIREMENTS_PATH}" ]]; then
-  log "No pyproject/setup.py found; installing dependencies from requirements.txt"
-  runuser -u openscan -- bash -lc "set -e; source '${DST_DIR}/venv/bin/activate'; pip install --upgrade pip; pip install -r '${REQUIREMENTS_PATH}'"
-else
-  log "WARNING: No packaging metadata or requirements.txt found; skipping Python package installation"
-fi
+log "Installing editable package from ${DST_DIR}"
+runuser -u openscan -- bash -lc "set -e; source '${DST_DIR}/venv/bin/activate'; pip install --upgrade pip; pip install -e '${DST_DIR}'"
 
 if [[ ${KEEP_SETTINGS} -eq 0 ]]; then
   log "Resetting settings in ${SETTINGS_DIR} from ${SRC_DIR}/settings (if present)..."
