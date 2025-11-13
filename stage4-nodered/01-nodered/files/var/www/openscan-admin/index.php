@@ -98,7 +98,7 @@ if ($action === 'download_settings') {
 }
 
 if ($action === 'download_flows') {
-    $flows = '/opt/openscan3/.node-red/flows.json';
+    $flows = '/opt/openscan3/node-red/flows.json';
     if (!is_readable($flows)) {
         http_response_code(404);
         echo 'flows.json not found';
