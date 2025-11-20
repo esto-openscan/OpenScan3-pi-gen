@@ -5,4 +5,4 @@
 [submodule "OpenScan3"]
 	path = OpenScan3
 	url = https://github.com/OpenScan-org/OpenScan3.git
-	branch = release/0.3.0
+	branch = release/v0.4.0

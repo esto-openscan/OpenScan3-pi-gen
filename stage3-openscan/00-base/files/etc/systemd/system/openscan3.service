@@ -15,7 +15,7 @@ Environment="OPENSCAN_LOG_DIR=/var/log/openscan3"
 Environment="OPENSCAN_SETTINGS_DIR=/etc/openscan3"
 
 
-ExecStart=/usr/local/bin/openscan3 serve
+ExecStart=/usr/local/bin/openscan3 serve --reload --reload-dir /opt/openscan3
 Restart=on-failure
 RestartSec=5
 

@@ -9,6 +9,8 @@ For instructions on using the generated images, see the [image documentation](DO
 - `pi-gen/` &mdash; upstream pi-gen submodule. Do not modify directly; keep customizations outside.
 - `OpenScan3/` &mdash; OpenScan3 application/firmware as a git submodule. Synced into `/opt/openscan3` during `stage3-openscan/00-base`.
 - `stage3-openscan/` &mdash; additional OpenScan3 stages appended after the stock `stage0`&ndash;`stage2` pipeline.
+- `stage4-nodered/` &mdash; Node-RED web frontend and related assets.
+- `stage5-[camera-config]` &mdash; camera-specific stages appended after the stock `stage3` pipeline.
 - `camera-configs/` &mdash; per-camera environment files declaring `IMG_NAME`, `CAMERA_TYPE`, and the `STAGE_LIST` to build.
 - `build-all.sh` &mdash; helper script that loads camera configs and invokes `pi-gen/build.sh`.
 
