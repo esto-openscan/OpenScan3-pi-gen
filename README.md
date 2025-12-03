@@ -43,9 +43,12 @@ git submodule add --name OpenScan3 https://github.com/esto-openscan/OpenScan3.gi
 
 # build every available variant (default when no args given)
 ./build-all.sh
+
+# or build via docker
+./build-all-docker.sh generic imx519
 ```
 
-Environment variables inside each `.env` are exported before launching `pi-gen/build.sh`. Customize or add new configs by copying an existing file in `camera-configs/` and adjusting values.
+Environment variables inside each `.env` are exported before launching `pi-gen/build.sh`. Customize or add new configs by copying an existing file in `camera-configs/` and adjusting values. Der Docker-Helfer `build-all-docker.sh` erzeugt pro Kamera ein temporäres `config` und ruft `pi-gen/build-docker.sh -c …` auf; Deploy-Artefakte landen weiterhin unter `pi-gen/deploy/`.
 
 ## Customizing Stages
 
