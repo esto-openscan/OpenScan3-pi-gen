@@ -2,7 +2,9 @@
 set -euo pipefail
 
 PI_GEN_DIR="pi-gen"
-CONFIG_DIR="camera-configs"
+CONFIG_DIR="build-configs"
+COMMON_ENV="${CONFIG_DIR}/base.env"
+CONFIG_HELPER="scripts/config-loader.sh"
 BUILD_DOCKER_SCRIPT="${PI_GEN_DIR}/build-docker.sh"
 PROJECT_ROOT="${PWD}"
 
@@ -22,9 +24,22 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 
 if [ ! -d "${CONFIG_DIR}" ]; then
-    echo "Expected camera configuration directory '${CONFIG_DIR}'" >&2
+    echo "Expected build configuration directory '${CONFIG_DIR}'" >&2
     exit 1
 fi
+
+if [ ! -f "${COMMON_ENV}" ]; then
+    echo "Missing common OpenScan base environment at '${COMMON_ENV}'" >&2
+    exit 1
+fi
+
+if [ ! -f "${CONFIG_HELPER}" ]; then
+    echo "Missing config helper script at '${CONFIG_HELPER}'" >&2
+    exit 1
+fi
+
+# shellcheck disable=SC1090
+source "${CONFIG_HELPER}"
 
 HOST_WORK_DIR="${HOST_WORK_DIR:-${PI_GEN_DIR}/work}"
 HOST_DEPLOY_DIR="${HOST_DEPLOY_DIR:-${PI_GEN_DIR}/deploy}"
@@ -47,7 +62,12 @@ if [ "$#" -gt 0 ]; then
         done
     )
 else
-    mapfile -t CAM_CONFIGS < <(find "${CONFIG_DIR}" -maxdepth 1 -type f -name '*.env' | sort)
+    mapfile -t CAM_CONFIGS < <(find "${CONFIG_DIR}" -maxdepth 1 -type f -name '*.env' ! -name 'base.env' | sort)
+fi
+
+if [ "${#CAM_CONFIGS[@]}" -eq 0 ]; then
+    echo "No build configuration files found under '${CONFIG_DIR}'" >&2
+    exit 1
 fi
 
 if [ "${#CAM_CONFIGS[@]}" -eq 0 ]; then
@@ -64,21 +84,24 @@ cleanup() {
 trap cleanup EXIT
 
 for cam_config in "${CAM_CONFIGS[@]}"; do
+    if [ "$cam_config" = "${COMMON_ENV}" ]; then
+        continue
+    fi
+
     if [ ! -f "$cam_config" ]; then
         echo "Configuration file '$cam_config' not found" >&2
         exit 1
     fi
 
-    # shellcheck disable=SC1090
-    source "$cam_config"
+    load_build_config "${COMMON_ENV}" "$cam_config"
 
     if [ -z "${IMG_NAME:-}" ]; then
-        echo "IMG_NAME not defined in '$cam_config'" >&2
+        echo "IMG_NAME not defined after loading '$cam_config'" >&2
         exit 1
     fi
 
     if [ -z "${STAGE_LIST:-}" ]; then
-        echo "STAGE_LIST not defined in '$cam_config'" >&2
+        echo "STAGE_LIST not defined after loading '$cam_config'" >&2
         exit 1
     fi
 
@@ -125,10 +148,8 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
         container_stage_items+=("${container_stage}")
     done
     printf 'STAGE_LIST="%s"\n' "${container_stage_items[*]}" >> "$tmp_config"
-
-    if ! grep -q '^TARGET_HOSTNAME=' "$tmp_config"; then
-        printf 'TARGET_HOSTNAME="%s"\n' "${TARGET_HOSTNAME:-openscan3-alpha}" >> "$tmp_config"
-    fi
+    printf 'IMG_NAME="%s"\n' "$IMG_NAME" >> "$tmp_config"
+    printf 'TARGET_HOSTNAME="%s"\n' "${TARGET_HOSTNAME}" >> "$tmp_config"
 
     if ! grep -q '^WORK_DIR=' "$tmp_config"; then
         printf 'WORK_DIR="%s"\n' "/pi-gen/work/${IMG_NAME}" >> "$tmp_config"
@@ -142,6 +163,6 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
     PIGEN_DOCKER_OPTS="${docker_opts_string}" "${BUILD_DOCKER_SCRIPT}" -c "$config_path"
     echo "[Docker] Completed build for '${IMG_NAME}'"
 
-    unset CAMERA_TYPE IMG_NAME STAGE_LIST TARGET_HOSTNAME WORK_DIR
+    unset CAMERA_TYPE IMG_NAME IMG_NAME_SUFFIX STAGE_LIST TARGET_HOSTNAME WORK_DIR
     printf '\n'
 done

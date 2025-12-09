@@ -32,11 +32,11 @@ git submodule update --init --recursive
 
 # if the OpenScan3 submodule is not yet added in your clone, add it once
 git submodule add --name OpenScan3 https://github.com/esto-openscan/OpenScan3.git OpenScan3
-# build a single variant by short name (maps to camera-configs/generic.env)
+# build a single variant by short name (maps to build-configs/generic.env)
 ./build-all.sh generic
 
 # build by providing explicit env file path
-./build-all.sh camera-configs/imx519.env
+./build-all.sh build-configs/imx519.env
 
 # build multiple variants in sequence
 ./build-all.sh generic imx519
