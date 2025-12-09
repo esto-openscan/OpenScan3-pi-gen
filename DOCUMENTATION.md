@@ -9,7 +9,7 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 - Boot the Pi, connect it to your network (Ethernet recommended for first boot).
 - Open a browser to `http://openscan3-alpha/` or the Pi’s IP.
 - You’ll land on the OpenScan dashboard at `/dashboard`.
-- API is available on the device at `http://<pi>:8000/latest`.
+- API is available on the device at `http://<pi>/api/` (proxied by nginx) and directly at `http://<pi>:8000/latest`.
 - API documentation is available at `http://<pi>:8000/latest/docs`.
 ---
 
@@ -23,11 +23,13 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 - **Node-RED web UI**
   - Runs as systemd service `node-red-openscan.service` (see `stage4-nodered/01-nodered/files/etc/systemd/system/node-red-openscan.service`).
   - User directory: `/opt/openscan3/node-red` with `flows.json` and `settings.js`.
-  - Editor is enabled at `/nodered` and dashboard at `/dashboard`
+  - Editor is enabled at `/nodered` and dashboard at `/dashboard` (served through nginx snippets dropped by stage4).
 
 - **nginx reverse proxy**
-  - Listens on port 80 and proxies all paths to Node-RED on `127.0.0.1:1880`.
-  - Root `/` redirects to `/dashboard/` (see `stage4-nodered/01-nodered/files/etc/nginx/sites-available/default`).
+  - Installed in stage3 (`stage3-openscan/02-nginx`).
+  - Base site `openscan3-api.conf` proxies `/api` to the OpenScan3 FastAPI backend (`127.0.0.1:8000`).
+  - Admin site `openscan3-admin.conf` exposes the updater at `/admin/`.
+  - Additional locations (e.g., Node-RED) are included via `/etc/nginx/openscan3/locations-enabled/*.conf`.
 
 - **Persistent settings**
   - OpenScan settings are stored in `/etc/openscan3` (created and made group-writable by `stage3-openscan/00-base/01-run.sh`).
@@ -106,6 +108,7 @@ Run these on the Pi (SSH or local):
 - OpenScan git source copy: `/opt/openscan3-src` (used for future updates/sync)
 - Python venv for the service: `/opt/openscan3/venv`
 - Node-RED userDir: `/opt/openscan3/.node-red` (contains `flows.json`, `settings.js`)
+- Nginx config roots: `/etc/nginx/sites-available/openscan3-api.conf`, `/etc/nginx/sites-available/openscan3-admin.conf`, and snippet dir `/etc/nginx/openscan3/locations-enabled/`
 - OpenScan settings: `/etc/openscan3` (group-writable for `openscan`)
 - Boot config: `/boot/firmware/config.txt` (camera overlays added per variant)
 
@@ -165,7 +168,7 @@ To modify Node-RED flows, edit `/opt/openscan3/.node-red/flows.json` via the edi
 
 - **No dashboard on port 80**
   - Check services: `systemctl status nginx node-red-openscan`.
-  - Confirm Node-RED is listening on `127.0.0.1:1880` and nginx config exists at `/etc/nginx/sites-available/default`.
+  - Confirm Node-RED is listening on `127.0.0.1:1880` and its snippet exists at `/etc/nginx/openscan3/locations-enabled/50-nodered.conf`.
 
 - **UI shows setup screen / device not initialized**
   - Check OpenScan3: `systemctl status openscan3` and `journalctl -u openscan3 -e -f`.
