@@ -25,10 +25,15 @@ else
     SUDO=""
 fi
 
+ENABLE_STAGE6=0
+
+CAM_CONFIGS=()
 if [ "$#" -gt 0 ]; then
-    CAM_CONFIGS=()
     for arg in "$@"; do
         case "$arg" in
+            --with-develop)
+                ENABLE_STAGE6=1
+                ;;
             *.env)
                 CAM_CONFIGS+=("$arg")
                 ;;
@@ -37,7 +42,9 @@ if [ "$#" -gt 0 ]; then
                 ;;
         esac
     done
-else
+fi
+
+if [ "${#CAM_CONFIGS[@]}" -eq 0 ]; then
     mapfile -t CAM_CONFIGS < <(find "${CONFIG_DIR}" -maxdepth 1 -type f -name '*.env' ! -name 'base.env' | sort)
 fi
 
@@ -53,8 +60,11 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
 
     load_build_config "${COMMON_ENV}" "$cam_config"
 
-    ${SUDO:+$SUDO }CAMERA_TYPE=$CAMERA_TYPE IMG_NAME=$IMG_NAME \
-         STAGE_LIST="$STAGE_LIST" \
-         TARGET_HOSTNAME="${TARGET_HOSTNAME}" \
-         "$PI_GEN_DIR"/build.sh
+    STAGE_LIST_FOR_BUILD="$STAGE_LIST"
+    if [ "$ENABLE_STAGE6" -eq 1 ]; then
+        STAGE_LIST_FOR_BUILD="${STAGE_LIST_FOR_BUILD} stage6-develop"
+        STAGE_LIST_FOR_BUILD="${STAGE_LIST_FOR_BUILD# }"
+    fi
+
+    ${SUDO:+$SUDO }CAMERA_TYPE=$CAMERA_TYPE IMG_NAME=$IMG_NAME          STAGE_LIST="$STAGE_LIST_FOR_BUILD"          TARGET_HOSTNAME="${TARGET_HOSTNAME}"          "$PI_GEN_DIR"/build.sh
 done
