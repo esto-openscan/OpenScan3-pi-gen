@@ -6,12 +6,11 @@ set -euo pipefail
 # - Syncs to /opt/openscan3 (no .git)
 # - Rebuilds venv and reinstalls package (editable)
 # - Resets /etc/openscan3 from src settings (unless --keep-settings)
-# - Refreshes Node-RED directory (unless --keep-nodered)
+# - Downloads and deploys latest OpenScan3-Client SPA from GitHub releases
 # Default branch: develop
 
 BRANCH=""
 KEEP_SETTINGS=0
-KEEP_NODERED=0
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -19,23 +18,19 @@ while [[ $# -gt 0 ]]; do
       BRANCH="$2"; shift 2;;
     --keep-settings)
       KEEP_SETTINGS=1; shift;;
-    --keep-nodered)
-      KEEP_NODERED=1; shift;;
     -h|--help)
-      echo "Usage: $0 [--branch <name>] [--keep-settings] [--keep-nodered]"; exit 0;;
+      echo "Usage: $0 [--branch <name>] [--keep-settings]"; exit 0;;
     *)
-      echo "Unknown arg: $1"; echo "Usage: $0 [--branch <name>] [--keep-settings] [--keep-nodered]"; exit 1;;
+      echo "Unknown arg: $1"; echo "Usage: $0 [--branch <name>] [--keep-settings]"; exit 1;;
   esac
 done
 
 SRC_DIR="/opt/openscan3-src"
 DST_DIR="/opt/openscan3"
 SETTINGS_DIR="/etc/openscan3"
-NODE_RED_DIR="${DST_DIR}/node-red"
-NODE_RED_FLOW_TARGET="${NODE_RED_DIR}/flows.json"
-NODE_RED_PLUGIN_FILE="${NODE_RED_DIR}/nodered-plugins.txt"
-FLOWS_SRC="${SRC_DIR}/node-red/flows.json"
-FLOWS_DST="${NODE_RED_FLOW_TARGET}"
+CLIENT_DIR="/opt/openscan3-client"
+GITHUB_REPO="esto-openscan/OpenScan3-Client"
+GITHUB_RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/openscan3-client-dist.zip"
 
 # checkout branch as in src git repo or fallback to develop branch
 if [[ -z "${BRANCH}" && -d "${SRC_DIR}/.git" ]]; then
@@ -53,21 +48,12 @@ log() { echo "[openscan3-update] $*"; }
 
 log "Stopping services..."
 systemctl stop openscan3 || true
-systemctl stop node-red-openscan || true
 
 log "Updating source repo at ${SRC_DIR} to origin/${BRANCH}..."
 runuser -u openscan -- bash -lc "set -e; cd '${SRC_DIR}'; git fetch --all --prune; git checkout -B '${BRANCH}' 'origin/${BRANCH}'; git reset --hard 'origin/${BRANCH}'; git clean -fdx"
 
-log "Syncing source to working tree ${DST_DIR} (excluding .git${KEEP_NODERED:+, node-red})..."
-RSYNC_ARGS=(-a --delete --exclude '.git')
-if [[ ${KEEP_NODERED} -eq 1 ]]; then
-  RSYNC_ARGS+=(--exclude 'node-red/')
-fi
-rsync "${RSYNC_ARGS[@]}" "${SRC_DIR}/" "${DST_DIR}/"
-
-log "Ensuring Node-RED runtime layout..."
-install -d "${NODE_RED_DIR}"
-chown -R openscan:openscan "${NODE_RED_DIR}"
+log "Syncing source to working tree ${DST_DIR} (excluding .git)..."
+rsync -a --delete --exclude '.git' "${SRC_DIR}/" "${DST_DIR}/"
 
 log "Recreating venv and reinstalling package..."
 rm -rf "${DST_DIR}/venv"
@@ -90,33 +76,31 @@ if [[ ${KEEP_SETTINGS} -eq 0 ]]; then
   setfacl -Rdm m::rwX "${SETTINGS_DIR}" || true
 fi
 
-if [[ ${KEEP_NODERED} -eq 0 ]]; then
-  if [[ -f "${FLOWS_SRC}" ]]; then
-    log "Updating Node-RED flows from ${FLOWS_SRC} -> ${FLOWS_DST}"
-    install -d "$(dirname "${FLOWS_DST}")"
-    install -m 644 "${FLOWS_SRC}" "${FLOWS_DST}"
-  else
-    log "No flows.json found at ${FLOWS_SRC}; leaving existing flows intact"
-  fi
-else
-  log "--keep-nodered set; preserving existing Node-RED directory"
+log "Downloading latest OpenScan3-Client from GitHub releases..."
+TMP_DIR=$(mktemp -d)
+trap "rm -rf '${TMP_DIR}'" EXIT
+
+ZIP_FILE="${TMP_DIR}/openscan3-client.zip"
+log "Downloading from ${GITHUB_RELEASE_URL}..."
+curl -fsSL -o "${ZIP_FILE}" "${GITHUB_RELEASE_URL}"
+if [[ ! -f "${ZIP_FILE}" ]]; then
+  log "ERROR: Failed to download client archive"
+  exit 1
 fi
 
-if [[ -f "${FLOWS_DST}" ]]; then
-  chown openscan:openscan "${FLOWS_DST}" || true
-fi
+log "Extracting client to ${CLIENT_DIR}..."
+rm -rf "${CLIENT_DIR}"
+install -d "${CLIENT_DIR}"
+unzip -q "${ZIP_FILE}" -d "${CLIENT_DIR}"
 
-if [[ ${KEEP_NODERED} -eq 0 && -f "${NODE_RED_PLUGIN_FILE}" ]]; then
-  log "Installing Node-RED plugins from ${NODE_RED_PLUGIN_FILE}"
-  runuser -u openscan -- bash -lc "set -e; cd '${NODE_RED_DIR}'; while IFS= read -r raw || [[ -n \"\${raw}\" ]]; do plugin=\$(printf '%s' \"\${raw}\" | tr -d '\\r' | xargs); if [[ -z \"\${plugin}\" || \"\${plugin:0:1}\" == '#' ]]; then continue; fi; npm install --no-fund --no-audit \"\${plugin}\"; done < '${NODE_RED_PLUGIN_FILE}'"
-elif [[ ${KEEP_NODERED} -eq 1 ]]; then
-  log "Skipping Node-RED plugin installation because --keep-nodered is set"
-else
-  log "No Node-RED plugin list found at ${NODE_RED_PLUGIN_FILE}; skipping plugin installation"
-fi
+log "Setting permissions for ${CLIENT_DIR}..."
+chown -R www-data:www-data "${CLIENT_DIR}"
+find "${CLIENT_DIR}" -type d -exec chmod 755 {} +
+find "${CLIENT_DIR}" -type f -exec chmod 644 {} +
+
+log "Client deployment complete"
 
 log "Restarting services..."
 systemctl restart openscan3 || true
-systemctl restart node-red-openscan || true
 
 log "Done."

@@ -5,7 +5,7 @@ echo "Configuring OpenScan3 base components"
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 PROJECT_ROOT="$(readlink -f "${SCRIPT_DIR}/../..")"
 SUBMODULE_DIR="${PROJECT_ROOT}/OpenScan3"
-SUBMODULE_GIT_DIR="${PROJECT_ROOT}/.git/modules/OpenScan3"
+SUBMODULE_GIT_DIR="${PROJECT_ROOT}/OpenScan3-git"
 
 install -m 755 -D files/usr/local/bin/openscan3 "${ROOTFS_DIR}/usr/local/bin/openscan3"
 install -m 644 -D files/etc/systemd/system/openscan3.service "${ROOTFS_DIR}/etc/systemd/system/openscan3.service"

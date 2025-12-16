@@ -138,6 +138,18 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
         docker_volume_opts+=("--volume=${OPENSCAN3_DIR}:/pi-gen/OpenScan3")
     fi
 
+    OPENSCAN3_GIT_DIR="${PROJECT_ROOT}/.git/modules/OpenScan3"
+    if [ -d "${OPENSCAN3_GIT_DIR}" ]; then
+        OPENSCAN3_GIT_DIR=$(realpath "${OPENSCAN3_GIT_DIR}")
+        docker_volume_opts+=("--volume=${OPENSCAN3_GIT_DIR}:/pi-gen/OpenScan3-git")
+    fi
+
+    OPENSCAN3_CLIENT_DIST="${PROJECT_ROOT}/OpenScan3-client-dist"
+    if [ -d "${OPENSCAN3_CLIENT_DIST}" ]; then
+        OPENSCAN3_CLIENT_DIST=$(realpath "${OPENSCAN3_CLIENT_DIST}")
+        docker_volume_opts+=("--volume=${OPENSCAN3_CLIENT_DIST}:/pi-gen/OpenScan3-client-dist")
+    fi
+
     for stage in "${stage_items[@]}"; do
         case "$stage" in
             /*)

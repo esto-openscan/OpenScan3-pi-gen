@@ -97,31 +97,17 @@ if ($action === 'download_settings') {
     exit;
 }
 
-if ($action === 'download_flows') {
-    $flows = '/opt/openscan3/node-red/flows.json';
-    if (!is_readable($flows)) {
-        http_response_code(404);
-        echo 'flows.json not found';
-        exit;
-    }
-    header('Content-Type: application/json');
-    header('Content-Disposition: attachment; filename="flows.json"');
-    readfile($flows);
-    exit;
-}
 
 $updateCmdline = null;
 if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $branch = trim((string)($_POST['branch'] ?? 'develop'));
     if ($branch === '') { $branch = 'develop'; }
     $keepSettings = isset($_POST['keep_settings']);
-    $keepNodeRed = isset($_POST['keep_nodered']);
 
     $cmd = '/usr/bin/sudo -n /usr/local/sbin/openscan3-update';
     $args = [];
     if ($branch !== '') { $args[] = '--branch ' . escapeshellarg($branch); }
     if ($keepSettings) { $args[] = '--keep-settings'; }
-    if ($keepNodeRed) { $args[] = '--keep-nodered'; }
     $cmdline = $cmd . ' ' . implode(' ', $args) . ' 2>&1';
     $updateCmdline = $cmdline;
 }
@@ -153,17 +139,14 @@ $hostname = trim(shell_exec('hostname 2>/dev/null') ?? '');
 <body>
 <div class="container">
   <h1>OpenScan Admin</h1>
-  <p class="muted">Host: <?= h($hostname) ?> · This page lets you export settings/flows and trigger an update.</p>
+  <p class="muted">Host: <?= h($hostname) ?> · This page lets you export settings and trigger an update.</p>
 
   <div class="cards">
     <div class="card">
       <h3>Export</h3>
-      <p>Download current configuration and flows for debugging/backups.</p>
+      <p>Download current configuration for debugging/backups.</p>
       <p>
         <a class="btn" href="?action=download_settings">Download settings (tar.gz)</a>
-      </p>
-      <p>
-        <a class="btn" href="?action=download_flows">Download flows.json</a>
       </p>
     </div>
 
@@ -176,18 +159,15 @@ $hostname = trim(shell_exec('hostname 2>/dev/null') ?? '');
           <input id="branch" name="branch" type="text" value="<?= h($_POST['branch'] ?? 'develop') ?>">
         </div>
         <div class="row">
-          <div class="warning">Keeping settings or flows can leave stale data behind and trigger hard-to-debug issues. Leave both unchecked unless you know what you're doing. Good luck.</div>
+          <div class="warning">Keeping settings can leave stale data behind and trigger hard-to-debug issues. Leave unchecked unless you know what you're doing. Good luck.</div>
         </div>
         <div class="row">
           <label><input type="checkbox" name="keep_settings" <?= isset($_POST['keep_settings']) ? 'checked' : '' ?>> Keep settings (/etc/openscan3)</label>
         </div>
         <div class="row">
-          <label><input type="checkbox" name="keep_nodered" <?= isset($_POST['keep_nodered']) ? 'checked' : '' ?>> Keep Node-RED state (/opt/openscan3/node-red)</label>
-        </div>
-        <div class="row">
           <button class="btn primary" type="submit">Run Update</button>
         </div>
-        <p class="muted">This will stop services, force pull the source repo, sync runtime, rebuild venv, reset settings/flows (unless kept), and restart services.</p>
+        <p class="muted">This will stop services, force pull the source repo, sync runtime, rebuild venv, download latest client from GitHub, reset settings (unless kept), and restart services.</p>
       </form>
     </div>
   </div>
