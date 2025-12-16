@@ -16,13 +16,9 @@ rm -rf "${ROOTFS_DIR}/opt/openscan3" "${ROOTFS_DIR}/opt/openscan3-src"
 install -d "${ROOTFS_DIR}/opt/openscan3-src"
 rsync -a --delete --exclude '.git' "${SUBMODULE_DIR}/" "${ROOTFS_DIR}/opt/openscan3-src/"
 
-if [ -d "${SUBMODULE_GIT_DIR}" ]; then
-    install -d "${ROOTFS_DIR}/opt/openscan3-src/.git"
-    rsync -a --delete "${SUBMODULE_GIT_DIR}/" "${ROOTFS_DIR}/opt/openscan3-src/.git/"
-    git config --file "${ROOTFS_DIR}/opt/openscan3-src/.git/config" core.worktree /opt/openscan3-src
-else
-    echo "Warning: OpenScan3 git metadata not found, skipping .git sync"
-fi
+install -d "${ROOTFS_DIR}/opt/openscan3-src/.git"
+rsync -a --delete "${SUBMODULE_GIT_DIR}/" "${ROOTFS_DIR}/opt/openscan3-src/.git/"
+git config --file "${ROOTFS_DIR}/opt/openscan3-src/.git/config" core.worktree /opt/openscan3-src
 
 # Create working copy (without .git) used at runtime and for editable install
 install -d "${ROOTFS_DIR}/opt/openscan3"

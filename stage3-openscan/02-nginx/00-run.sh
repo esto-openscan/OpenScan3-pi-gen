@@ -5,7 +5,9 @@ FILES_DIR="${SCRIPT_DIR}/files"
 
 install -m 644 -D "${FILES_DIR}/etc/nginx/sites-available/openscan3-api.conf" "${ROOTFS_DIR}/etc/nginx/sites-available/openscan3-api.conf"
 install -d -m 755 "${ROOTFS_DIR}/etc/nginx/openscan3/locations-enabled"
+install -m 644 -D "${FILES_DIR}/etc/nginx/openscan3/locations-enabled/60-client.conf" "${ROOTFS_DIR}/etc/nginx/openscan3/locations-enabled/60-client.conf"
 install -m 644 -D "${FILES_DIR}/var/www/openscan-admin/index.php" "${ROOTFS_DIR}/var/www/openscan-admin/index.php"
+install -d -m 755 "${ROOTFS_DIR}/opt/openscan3-client"
 
 on_chroot <<'EOF'
 set -e
@@ -13,6 +15,8 @@ set -e
 ln -sf /etc/nginx/sites-available/openscan3-api.conf /etc/nginx/sites-enabled/default
 install -d -m 755 /var/lib/openscan3/install
 adduser www-data openscan || true
+install -d -m 2775 /opt/openscan3-client
+chown openscan:openscan /opt/openscan3-client
 
 for CONF in /etc/php/*/fpm/pool.d/www.conf; do
   [ -f "${CONF}" ] || continue
