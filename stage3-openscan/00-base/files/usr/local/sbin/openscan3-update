@@ -1,13 +1,22 @@
 #!/bin/bash
 set -euo pipefail
 
-# Quick & dirty updater for OpenScan3 image
-# - Force-resets /opt/openscan3-src to origin/<branch>
+# OpenScan3 Updater
+# - Force-resets /opt/openscan3-src to <remote>/<branch>
 # - Syncs to /opt/openscan3 (no .git)
 # - Rebuilds venv and reinstalls package (editable)
 # - Resets /etc/openscan3 from src settings (unless --keep-settings)
 # - Downloads and deploys latest OpenScan3-Client SPA from GitHub releases
-# Default branch: develop
+
+# === Configuration ===
+SRC_DIR="/opt/openscan3-src"
+DST_DIR="/opt/openscan3"
+SETTINGS_DIR="/etc/openscan3"
+CLIENT_DIR="/opt/openscan3-client"
+GITHUB_REPO="esto-openscan/OpenScan3-Client"
+SPA_ZIP="spa.zip"
+GITHUB_RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/${SPA_ZIP}"
+DEFAULT_BRANCH="develop"
 
 BRANCH=""
 KEEP_SETTINGS=0
@@ -25,32 +34,47 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-SRC_DIR="/opt/openscan3-src"
-DST_DIR="/opt/openscan3"
-SETTINGS_DIR="/etc/openscan3"
-CLIENT_DIR="/opt/openscan3-client"
-GITHUB_REPO="esto-openscan/OpenScan3-Client"
-GITHUB_RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/openscan3-client-dist.zip"
+log() { echo "[openscan3-update] $*"; }
+err() { echo "[openscan3-update] ERROR: $*" >&2; }
 
-# checkout branch as in src git repo or fallback to develop branch
+git config --system --add safe.directory "${SRC_DIR}" || true
+
+# Detect the primary remote (first available)
+get_remote() {
+  runuser -u openscan -- git -C "${SRC_DIR}" remote 2>/dev/null | head -n1 || true
+}
+
+# Determine branch: use provided, or current, or default
 if [[ -z "${BRANCH}" && -d "${SRC_DIR}/.git" ]]; then
   CURRENT_BRANCH=$(runuser -u openscan -- git -C "${SRC_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
   if [[ -n "${CURRENT_BRANCH}" && "${CURRENT_BRANCH}" != "HEAD" ]]; then
     BRANCH="${CURRENT_BRANCH}"
   fi
 fi
+: "${BRANCH:=${DEFAULT_BRANCH}}"
 
-: "${BRANCH:=develop}"
-
-git config --system --add safe.directory "${SRC_DIR}" || true
-
-log() { echo "[openscan3-update] $*"; }
+REMOTE=$(get_remote)
+if [[ -z "${REMOTE}" ]]; then
+  err "No git remote found in ${SRC_DIR}"
+  exit 1
+fi
 
 log "Stopping services..."
 systemctl stop openscan3 || true
+pkill -9 -f "python.*openscan" || true
 
-log "Updating source repo at ${SRC_DIR} to origin/${BRANCH}..."
-runuser -u openscan -- bash -lc "set -e; cd '${SRC_DIR}'; git fetch --all --prune; git checkout -B '${BRANCH}' 'origin/${BRANCH}'; git reset --hard 'origin/${BRANCH}'; git clean -fdx"
+log "Updating source repo at ${SRC_DIR} to ${REMOTE}/${BRANCH}..."
+runuser -u openscan -- bash -lc "set -e; cd '${SRC_DIR}'; git fetch '${REMOTE}' --prune"
+
+# Verify branch exists on remote
+if ! runuser -u openscan -- git -C "${SRC_DIR}" rev-parse --verify "${REMOTE}/${BRANCH}" >/dev/null 2>&1; then
+  err "Branch '${BRANCH}' not found on remote '${REMOTE}'"
+  log "Available branches:"
+  runuser -u openscan -- git -C "${SRC_DIR}" branch -r | grep "^  ${REMOTE}/" | sed "s|  ${REMOTE}/||" || true
+  exit 1
+fi
+
+runuser -u openscan -- bash -lc "set -e; cd '${SRC_DIR}'; git checkout -B '${BRANCH}' '${REMOTE}/${BRANCH}'; git reset --hard '${REMOTE}/${BRANCH}'; git clean -fdx"
 
 log "Syncing source to working tree ${DST_DIR} (excluding .git)..."
 rsync -a --delete --exclude '.git' "${SRC_DIR}/" "${DST_DIR}/"
@@ -80,7 +104,7 @@ log "Downloading latest OpenScan3-Client from GitHub releases..."
 TMP_DIR=$(mktemp -d)
 trap "rm -rf '${TMP_DIR}'" EXIT
 
-ZIP_FILE="${TMP_DIR}/openscan3-client.zip"
+ZIP_FILE="${TMP_DIR}/${SPA_ZIP}"
 log "Downloading from ${GITHUB_RELEASE_URL}..."
 curl -fsSL -o "${ZIP_FILE}" "${GITHUB_RELEASE_URL}"
 if [[ ! -f "${ZIP_FILE}" ]]; then
