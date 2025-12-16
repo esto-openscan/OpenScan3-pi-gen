@@ -5,9 +5,11 @@ PI_GEN_DIR="pi-gen"
 CONFIG_DIR="build-configs"
 COMMON_ENV="${CONFIG_DIR}/base.env"
 CONFIG_HELPER="scripts/config-loader.sh"
+CLEANUP_SCRIPT="scripts/cleanup.sh"
 BUILD_DOCKER_SCRIPT="${PI_GEN_DIR}/build-docker.sh"
 PROJECT_ROOT="${PWD}"
 ENABLE_STAGE6=0
+SKIP_CLEANUP=0
 
 if [ ! -d "${PI_GEN_DIR}" ]; then
     echo "Expected pi-gen submodule in '${PI_GEN_DIR}'" >&2
@@ -39,6 +41,17 @@ if [ ! -f "${CONFIG_HELPER}" ]; then
     exit 1
 fi
 
+# Offer cleanup before build
+if [ "${SKIP_CLEANUP}" -eq 0 ] && [ -f "${CLEANUP_SCRIPT}" ]; then
+    echo ""
+    read -p "Do you want to clean all caches, work, deploy directories and Docker images before building? [y/N] " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        bash "${CLEANUP_SCRIPT}"
+        echo ""
+    fi
+fi
+
 # shellcheck disable=SC1090
 source "${CONFIG_HELPER}"
 
@@ -58,6 +71,9 @@ if [ "$#" -gt 0 ]; then
         case "$arg" in
             --with-develop)
                 ENABLE_STAGE6=1
+                ;;
+            --skip-cleanup)
+                SKIP_CLEANUP=1
                 ;;
             *.env)
                 CAM_CONFIGS+=("$arg")

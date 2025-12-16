@@ -5,6 +5,7 @@ PI_GEN_DIR="pi-gen"
 CONFIG_DIR="build-configs"
 COMMON_ENV="${CONFIG_DIR}/base.env"
 CONFIG_HELPER="scripts/config-loader.sh"
+CLEANUP_SCRIPT="scripts/cleanup.sh"
 
 if [ ! -f "${COMMON_ENV}" ]; then
     echo "Missing common OpenScan base environment at '${COMMON_ENV}'" >&2
@@ -14,6 +15,28 @@ fi
 if [ ! -f "${CONFIG_HELPER}" ]; then
     echo "Missing config helper script at '${CONFIG_HELPER}'" >&2
     exit 1
+fi
+
+# Offer cleanup before build
+SKIP_CLEANUP=0
+if [ "$#" -gt 0 ]; then
+    for arg in "$@"; do
+        case "$arg" in
+            --skip-cleanup)
+                SKIP_CLEANUP=1
+                ;;
+        esac
+    done
+fi
+
+if [ "${SKIP_CLEANUP}" -eq 0 ] && [ -f "${CLEANUP_SCRIPT}" ]; then
+    echo ""
+    read -p "Do you want to clean all caches, work, deploy directories and Docker images before building? [y/N] " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        bash "${CLEANUP_SCRIPT}"
+        echo ""
+    fi
 fi
 
 # shellcheck disable=SC1090
@@ -33,6 +56,9 @@ if [ "$#" -gt 0 ]; then
         case "$arg" in
             --with-develop)
                 ENABLE_STAGE6=1
+                ;;
+            --skip-cleanup)
+                # Already handled above
                 ;;
             *.env)
                 CAM_CONFIGS+=("$arg")
