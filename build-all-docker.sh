@@ -7,6 +7,7 @@ COMMON_ENV="${CONFIG_DIR}/base.env"
 CONFIG_HELPER="scripts/config-loader.sh"
 BUILD_DOCKER_SCRIPT="${PI_GEN_DIR}/build-docker.sh"
 PROJECT_ROOT="${PWD}"
+ENABLE_STAGE6=0
 
 if [ ! -d "${PI_GEN_DIR}" ]; then
     echo "Expected pi-gen submodule in '${PI_GEN_DIR}'" >&2
@@ -51,17 +52,24 @@ HOST_WORK_DIR=$(realpath "${HOST_WORK_DIR}")
 HOST_DEPLOY_DIR=$(realpath "${HOST_DEPLOY_DIR}")
 HOST_APT_CACHE_DIR=$(realpath "${HOST_APT_CACHE_DIR}")
 
+CAM_CONFIGS=()
 if [ "$#" -gt 0 ]; then
-    mapfile -t CAM_CONFIGS < <(
-        for arg in "$@"; do
-            if [[ ${arg} == *.env ]]; then
-                printf '%s\n' "$arg"
-            else
-                printf '%s/%s.env\n' "${CONFIG_DIR}" "$arg"
-            fi
-        done
-    )
-else
+    for arg in "$@"; do
+        case "$arg" in
+            --with-develop)
+                ENABLE_STAGE6=1
+                ;;
+            *.env)
+                CAM_CONFIGS+=("$arg")
+                ;;
+            *)
+                CAM_CONFIGS+=("${CONFIG_DIR}/${arg}.env")
+                ;;
+        esac
+    done
+fi
+
+if [ "${#CAM_CONFIGS[@]}" -eq 0 ]; then
     mapfile -t CAM_CONFIGS < <(find "${CONFIG_DIR}" -maxdepth 1 -type f -name '*.env' ! -name 'base.env' | sort)
 fi
 
@@ -103,6 +111,11 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
     if [ -z "${STAGE_LIST:-}" ]; then
         echo "STAGE_LIST not defined after loading '$cam_config'" >&2
         exit 1
+    fi
+
+    if [ "$ENABLE_STAGE6" -eq 1 ]; then
+        STAGE_LIST="${STAGE_LIST} stage6-develop"
+        STAGE_LIST="${STAGE_LIST# }"
     fi
 
     tmp_config=$(mktemp "${TMPDIR:-/tmp}/pigen-docker-config.XXXXXX")
