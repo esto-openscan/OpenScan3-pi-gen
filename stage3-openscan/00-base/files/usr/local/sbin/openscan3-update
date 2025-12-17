@@ -60,8 +60,8 @@ if [[ -z "${REMOTE}" ]]; then
 fi
 
 log "Stopping services..."
-systemctl stop openscan3 || true
 pkill -9 -f "python.*openscan" || true
+pkill -9 -f "/opt/openscan3/venv/bin/python" || true
 
 log "Updating source repo at ${SRC_DIR} to ${REMOTE}/${BRANCH}..."
 runuser -u openscan -- bash -lc "set -e; cd '${SRC_DIR}'; git fetch '${REMOTE}' --prune"
