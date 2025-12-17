@@ -10,6 +10,10 @@ install_pivariety_packages() {
   wget -O /tmp/install_pivariety_pkgs.sh \
     https://github.com/ArduCAM/Arducam-Pivariety-V4L2-Driver/releases/download/install_script/install_pivariety_pkgs.sh
   chmod +x /tmp/install_pivariety_pkgs.sh
+  
+  # Patch the script to use unzip -o for non-interactive extraction
+  sed -i 's/unzip \.\//unzip -o .\//g' /tmp/install_pivariety_pkgs.sh
+  
   /tmp/install_pivariety_pkgs.sh -p libcamera_dev
   /tmp/install_pivariety_pkgs.sh -p libcamera_apps
 }
