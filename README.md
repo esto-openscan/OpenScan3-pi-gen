@@ -32,6 +32,10 @@ git submodule update --init --recursive
 
 # if the OpenScan3 submodule is not yet added in your clone, add it once
 git submodule add --name OpenScan3 https://github.com/esto-openscan/OpenScan3.git OpenScan3
+
+# prepare local sources (sync submodules + fetch SPA web UI bundle)
+./scripts/prepare-build.sh
+
 # build a single variant by short name (maps to build-configs/generic.env)
 ./build-all.sh generic
 
@@ -44,7 +48,7 @@ git submodule add --name OpenScan3 https://github.com/esto-openscan/OpenScan3.gi
 # build every available variant (default when no args given)
 ./build-all.sh
 
-# or build via docker
+# or build via docker (runs inside container; still fine to call prepare-build first)
 ./build-all-docker.sh generic imx519
 ```
 
@@ -87,6 +91,7 @@ CLI wrapper for native builds (runs `pi-gen/build.sh`):
 - `./build-all.sh build-configs/imx519.env` &mdash; build via explicit path.
 - `./build-all.sh --skip-cleanup …` &mdash; skip the interactive cache cleanup prompt.
 - `./build-all.sh --with-develop …` &mdash; append `stage6-develop` after the selected `STAGE_LIST` (e.g., to add Samba dev shares).
+- Run `./scripts/prepare-build.sh` beforehand when building outside Docker to ensure the OpenScan3 submodule and the `OpenScan3-client-dist/` directory are present (use `--skip-client` or `--skip-submodules` if you only need part of the preparation).
 
 Environment loading is handled by `scripts/config-loader.sh`. Each run exports the common defaults from `build-configs/base.env`, then overlays the selected camera `.env`. The script auto-detects `sudo`; on systems without `sudo` it runs pi-gen directly.
 
