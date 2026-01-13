@@ -1,6 +1,6 @@
 # OpenScan3 Pi Image – User Guide
 
-This guide explains how to use the Raspberry Pi image produced by this repository. The image is based on Raspberry Pi OS Lite and ships with OpenScan3 (FastAPI backend) and a Node-RED-based web UI, plus camera-specific tweaks depending on the chosen build variant.
+This guide explains how to use the Raspberry Pi image produced by this repository. The image is based on Raspberry Pi OS Lite and ships with OpenScan3-Firmware (FastAPI backend) plus the Vue.js/Quasar-based OpenScan3-Client SPA, alongside camera-specific tweaks depending on the chosen build variant.
 
 ## TL;DR
 
@@ -8,7 +8,7 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 - Optionally enable SSH in Raspberry Pi Imager for headless access.
 - Boot the Pi, connect it to your network (Ethernet recommended for first boot).
 - Open a browser to `http://openscan3-alpha/` or the Pi’s IP.
-- You’ll land on the OpenScan dashboard at `/dashboard`.
+- You’ll land on the OpenScan3-Client dashboard (served at `/`).
 - API is available on the device at `http://<pi>/api/` (proxied by nginx) and directly at `http://<pi>:8000/latest`.
 - API documentation is available at `http://<pi>:8000/latest/docs`.
 ---
@@ -18,24 +18,24 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 - **OpenScan3 service**
   - Installed to `/opt/openscan3` and run in a Python venv.
   - Systemd unit: `openscan3.service` (see `stage3-openscan/00-base/files/etc/systemd/system/openscan3.service`).
-  - Default API base used by the UI: `http://localhost:8000`
 
-- **Node-RED web UI**
-  - Runs as systemd service `node-red-openscan.service` (see `stage4-nodered/01-nodered/files/etc/systemd/system/node-red-openscan.service`).
-  - User directory: `/opt/openscan3/node-red` with `flows.json` and `settings.js`.
-  - Editor is enabled at `/nodered` and dashboard at `/dashboard` (served through nginx snippets dropped by stage4).
+- **OpenScan3-Client web UI**
+  - Vue.js/Quasar SPA prebuilt into `/opt/openscan3-client`.
+  - Served statically by nginx (no separate systemd service).
+  - Default routes: `/` (dashboard) with history fallback handled by nginx.
 
 - **nginx reverse proxy**
   - Installed in stage3 (`stage3-openscan/02-nginx`).
-  - Base site `openscan3-api.conf` proxies `/api` to the OpenScan3 FastAPI backend (`127.0.0.1:8000`).
+  - Base site `openscan3-api.conf` proxies `/api` to the OpenScan3 FastAPI backend (`127.0.0.1:8000`) and serves the SPA from `/opt/openscan3-client`.
   - Admin site `openscan3-admin.conf` exposes the updater at `/admin/`.
-  - Additional locations (e.g., Node-RED) are included via `/etc/nginx/openscan3/locations-enabled/*.conf`.
+  - Additional locations (e.g., camera helpers) are included via `/etc/nginx/openscan3/locations-enabled/*.conf`.
 
 - **Persistent settings**
   - OpenScan settings are stored in `/etc/openscan3` (created and made group-writable by `stage3-openscan/00-base/01-run.sh`).
 
 - **Updater**
-  - A simple Updater for OpenScan3 and the Node-RED flows is reachable at `/admin`
+  - A simple updater for OpenScan3 and the OpenScan3-Client SPA is reachable at `/admin`.
+  - Also reachable from within the OpenScan3-Client SPA.
 
 ## Supported variants (camera-specific)
 
@@ -68,18 +68,17 @@ Your build variant is chosen via the `.env` config used at build time (see `came
 
 ## Accessing the web UI
 
-- Open `http://<pi>/` → redirects to `/dashboard` (Node-RED Dashboard from `OpenScan3/flows/flows.json`).
-  - Node-RED editor: `http://<pi>/nodered`.
-    - Note: The editor has no password by default in this image. Consider adding credentials in `/opt/openscan3/.node-red/settings.js` and restarting the service.
-- FastAPI generated OpenAPI docs: `http://<pi>:8000/latest/docs`
-- OpenAPI JSON: `http://<pi>:8000/latest/openapi.json`
-- Typical endpoints referenced by the UI: `/latest/device/info`, camera settings endpoints, etc. (see calls in `OpenScan3/flows/flows.json`).
+- Open `http://<pi>/` → serves the OpenScan3-Client SPA directly.
+  - History mode fallback keeps URLs such as `/projects` working without manual nginx tweaks.
+- FastAPI generated OpenAPI docs: `http://<pi>/api/latest/docs`
+- OpenAPI JSON: `http://<pi>/api/latest/openapi.json`
+- Typical endpoints consumed by the SPA: `/latest/device/info`, `/latest/projects`, and other REST/WS routes exposed by the firmware.
 
 ## Updater (experimental)
 - Admin page (experimental): `http://<pi>/admin/`
   - Minimal PHP page to:
     - Download OpenScan3 device settings as tar.gz (`/etc/openscan3`).
-    - Download Node-RED `flows.json`.
+    - Download the packaged OpenScan3-Client bundle (`/opt/openscan3-client`).
     - Trigger a quick update (see below). Default branch is `develop`.
   - Security: No authentication by default. Use only on trusted networks.
 
@@ -89,17 +88,14 @@ Run these on the Pi (SSH or local):
 
 - **Status**
   - `systemctl status openscan3`
-  - `systemctl status node-red-openscan`
   - `systemctl status nginx`
 
 - **Start/Stop/Restart**
   - `sudo systemctl restart openscan3`
-  - `sudo systemctl restart node-red-openscan`
   - `sudo systemctl restart nginx`
 
 - **Logs**
   - `journalctl -u openscan3 -e -f`
-  - `journalctl -u node-red -e -f` (SyslogIdentifier=`node-red`)
   - `journalctl -u nginx -e -f`
 
 ## File and directory layout (key locations)
@@ -107,7 +103,7 @@ Run these on the Pi (SSH or local):
 - OpenScan app (runtime, editable install): `/opt/openscan3`
 - OpenScan git source copy: `/opt/openscan3-src` (used for future updates/sync)
 - Python venv for the service: `/opt/openscan3/venv`
-- Node-RED userDir: `/opt/openscan3/.node-red` (contains `flows.json`, `settings.js`)
+- OpenScan3-Client static files: `/opt/openscan3-client`
 - Nginx config roots: `/etc/nginx/sites-available/openscan3-api.conf`, `/etc/nginx/sites-available/openscan3-admin.conf`, and snippet dir `/etc/nginx/openscan3/locations-enabled/`
 - OpenScan settings: `/etc/openscan3` (group-writable for `openscan`)
 - Boot config: `/boot/firmware/config.txt` (camera overlays added per variant)
@@ -133,16 +129,14 @@ sudo systemctl restart openscan3
 
 - CLI:
   ```bash
-  # Default branch is develop; add flags to keep current settings/flows if desired
-  sudo /usr/local/sbin/openscan3-update --branch develop [--keep-settings] [--keep-flows]
+  # Default branch is develop; add --keep-settings to preserve local overrides
+  sudo /usr/local/sbin/openscan3-update --branch develop [--keep-settings]
   ```
-  - Stops services, force-resets `/opt/openscan3-src` to `origin/<branch>`, syncs to `/opt/openscan3`, rebuilds venv, resets `/etc/openscan3` and `/opt/openscan3/.node-red/flows.json` (unless kept), restarts services.
+  - Stops services, force-resets `/opt/openscan3-src` to `origin/<branch>`, syncs to `/opt/openscan3`, rebuilds the venv, refreshes `/etc/openscan3` unless retained, downloads the latest OpenScan3-Client bundle, then restarts services.
 
 - Web:
-  - Open `http://<pi>/admin/` and use the form to trigger the same updater.
-  - You can choose branch and optionally keep settings and/or flows.
-
-To modify Node-RED flows, edit `/opt/openscan3/.node-red/flows.json` via the editor (`/nodered`) and deploy. The file persists across reboots.
+  - Open `http://<pi>/admin/` (or the updater entry inside the SPA) and use the form to trigger the same updater.
+  - You can choose branch and optionally keep settings; the client bundle is always refreshed to the latest release.
 
 ## Flashing the image
 
@@ -167,8 +161,8 @@ To modify Node-RED flows, edit `/opt/openscan3/.node-red/flows.json` via the edi
 ## Troubleshooting
 
 - **No dashboard on port 80**
-  - Check services: `systemctl status nginx node-red-openscan`.
-  - Confirm Node-RED is listening on `127.0.0.1:1880` and its snippet exists at `/etc/nginx/openscan3/locations-enabled/50-nodered.conf`.
+  - Check services: `systemctl status nginx`.
+  - Confirm `/opt/openscan3-client` contains the built SPA (index.html, assets) and that `/etc/nginx/openscan3/locations-enabled/60-client.conf` exists.
 
 - **UI shows setup screen / device not initialized**
   - Check OpenScan3: `systemctl status openscan3` and `journalctl -u openscan3 -e -f`.
@@ -178,8 +172,8 @@ To modify Node-RED flows, edit `/opt/openscan3/.node-red/flows.json` via the edi
   - For 64MP builds ensure the CMA overlay line exists: `dtoverlay=vc4-kms-v3d,cma-512`.
   - Power-cycle after changing overlays.
 
-- **Editor security**
-  - By default, the Node-RED editor (`/nodered`) is reachable via nginx. To restrict access, add credentials in `/opt/openscan3/.node-red/settings.js` and/or firewall the device.
+- **SPA caching issues after update**
+  - Force-refresh the browser (Ctrl+Shift+R) or clear cache; nginx sets `no-store` headers but some proxies may still cache aggressively.
 
 ## Notes for advanced users
 
