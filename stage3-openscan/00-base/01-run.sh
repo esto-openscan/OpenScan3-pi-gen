@@ -7,6 +7,10 @@ PROJECT_ROOT="$(readlink -f "${SCRIPT_DIR}/../..")"
 SUBMODULE_DIR="${PROJECT_ROOT}/OpenScan3"
 SUBMODULE_GIT_DIR="${PROJECT_ROOT}/OpenScan3-git"
 
+if [ ! -d "${SUBMODULE_GIT_DIR}" ]; then
+  SUBMODULE_GIT_DIR="$(git -C "${SUBMODULE_DIR}" rev-parse --absolute-git-dir)"
+fi
+
 install -m 755 -D files/usr/local/bin/openscan3 "${ROOTFS_DIR}/usr/local/bin/openscan3"
 install -m 644 -D files/etc/systemd/system/openscan3.service "${ROOTFS_DIR}/etc/systemd/system/openscan3.service"
 install -m 755 -D files/usr/local/sbin/openscan3-update "${ROOTFS_DIR}/usr/local/sbin/openscan3-update"
