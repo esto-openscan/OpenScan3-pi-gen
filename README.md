@@ -48,7 +48,7 @@ git submodule add --name OpenScan3 https://github.com/esto-openscan/OpenScan3.gi
 ./build-all-docker.sh generic imx519
 ```
 
-Environment variables inside each `.env` are exported before launching `pi-gen/build.sh`. Customize or add new configs by copying an existing file in `camera-configs/` and adjusting values. Der Docker-Helfer `build-all-docker.sh` erzeugt pro Kamera ein temporäres `config` und ruft `pi-gen/build-docker.sh -c …` auf; Deploy-Artefakte landen weiterhin unter `pi-gen/deploy/`.
+Environment variables inside each `.env` are exported before launching `pi-gen/build.sh`. Customize or add new configs by copying an existing file in `camera-configs/` and adjusting values. The Docker helper `build-all-docker.sh` generates a temporary config per camera and calls `pi-gen/build-docker.sh -c …`; deployment artifacts still land under `pi-gen/deploy/`.
 
 ## Customizing Stages
 
@@ -75,3 +75,28 @@ rm -rf pi-gen/work pi-gen/deploy
    ```
 2. Rebuild target images.
 3. Publish resulting `.img` files from `pi-gen/deploy/`.
+
+## Build Script Reference
+
+### `build-all.sh`
+
+CLI wrapper for native builds (runs `pi-gen/build.sh`):
+
+- `./build-all.sh` &mdash; build every camera config under `build-configs/` (excluding `base.env`).
+- `./build-all.sh generic` &mdash; build a single config without Arducam drivers (looks for `build-configs/generic.env`).
+- `./build-all.sh build-configs/imx519.env` &mdash; build via explicit path.
+- `./build-all.sh --skip-cleanup …` &mdash; skip the interactive cache cleanup prompt.
+- `./build-all.sh --with-develop …` &mdash; append `stage6-develop` after the selected `STAGE_LIST` (e.g., to add Samba dev shares).
+
+Environment loading is handled by `scripts/config-loader.sh`. Each run exports the common defaults from `build-configs/base.env`, then overlays the selected camera `.env`. The script auto-detects `sudo`; on systems without `sudo` it runs pi-gen directly.
+
+### `build-all-docker.sh`
+
+Containerized variant that invokes `pi-gen/build-docker.sh -c <temp-config>` per camera:
+
+- Accepts the same positional arguments and flags as `build-all.sh` (`--skip-cleanup`, `--with-develop`, `.env` paths or short names).
+- Creates a temporary, per-camera config file with the resolved `STAGE_LIST`, `IMG_NAME`, and `TARGET_HOSTNAME`.
+- Mounts the OpenScan3 submodule, git metadata, and optional `OpenScan3-client-dist/` folder into the container so Stage 3 can bake firmware + SPA.
+- Exposes work/deploy/cache directories via bind mounts (`$PI_GEN_DIR/work`, `$PI_GEN_DIR/deploy`, `.cache/pi-gen/apt`) so artifacts persist on the host.
+
+Both scripts respect the `STAGE_LIST` declared in each camera env. By default builds stop after `stage3-openscan`; pass `--with-develop` to append `stage6-develop`. Use the legacy Stage 4 only by manually editing `STAGE_LIST` if Node-RED testing is required.
