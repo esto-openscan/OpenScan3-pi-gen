@@ -6,6 +6,11 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 PROJECT_ROOT="$(readlink -f "${SCRIPT_DIR}/../..")"
 SUBMODULE_DIR="${PROJECT_ROOT}/OpenScan3"
 SUBMODULE_GIT_DIR="${PROJECT_ROOT}/OpenScan3-git"
+GPHOTO2_PYPI_VERSION="2.5.1"
+PIWHEELS_INDEX_URL="https://www.piwheels.org/simple"
+
+export GPHOTO2_PYPI_VERSION
+export PIWHEELS_INDEX_URL
 
 if [ ! -d "${SUBMODULE_GIT_DIR}" ]; then
   SUBMODULE_GIT_DIR="$(git -C "${SUBMODULE_DIR}" rev-parse --absolute-git-dir)"
@@ -76,6 +81,7 @@ chown -R openscan:openscan /opt/openscan3 /opt/openscan3-src
 
 # install OpenScan3 as pip package
 runuser -u openscan -- python3 -m venv --system-site-packages /opt/openscan3/venv
+runuser -u openscan -- bash -c "set -e; source /opt/openscan3/venv/bin/activate && pip install --upgrade pip && pip install --extra-index-url '${PIWHEELS_INDEX_URL}' --only-binary=:all: 'gphoto2==${GPHOTO2_PYPI_VERSION}'"
 runuser -u openscan -- bash -c 'cd /opt/openscan3 && source venv/bin/activate && pip install -e .'
 
 chmod +x /usr/local/bin/openscan3

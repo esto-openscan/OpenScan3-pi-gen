@@ -33,7 +33,7 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(readlink -f "${SCRIPT_DIR}/..")"
 CLIENT_DIST_DIR="${PROJECT_ROOT}/OpenScan3-client-dist"
 
-DEFAULT_CLIENT_REPO="esto-openscan/OpenScan3-Client"
+DEFAULT_CLIENT_REPO="OpenScan-org/OpenScan3-Client"
 DEFAULT_SPA_ZIP="spa.zip"
 
 SKIP_SUBMODULES=0
