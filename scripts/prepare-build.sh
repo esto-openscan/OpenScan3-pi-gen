@@ -5,6 +5,20 @@ LOG_PREFIX="[prepare-build]"
 log() { echo "${LOG_PREFIX} $*"; }
 err() { echo "${LOG_PREFIX} ERROR: $*" >&2; }
 
+ensure_origin_fetch_spec() {
+  local submodule_path="$1"
+  local fetch_spec="+refs/heads/*:refs/remotes/origin/*"
+
+  if [[ ! -d "${submodule_path}" ]]; then
+    return
+  fi
+
+  if ! git -C "${submodule_path}" config --get-all remote.origin.fetch | grep -Fq "${fetch_spec}"; then
+    log "Configuring remote.origin.fetch for ${submodule_path#${PROJECT_ROOT}/}"
+    git -C "${submodule_path}" config --add remote.origin.fetch "${fetch_spec}"
+  fi
+}
+
 usage() {
   cat <<'EOF'
 Usage: scripts/prepare-build.sh [options]
@@ -85,8 +99,15 @@ require_cmd unzip
 if [[ $SKIP_SUBMODULES -eq 0 ]]; then
   log "Syncing git submodules..."
   git -C "${PROJECT_ROOT}" submodule sync --recursive
+
+  log "Ensuring submodules are initialized..."
+  git -C "${PROJECT_ROOT}" submodule update --init --checkout --recursive
+
+  ensure_origin_fetch_spec "${PROJECT_ROOT}/pi-gen"
+  ensure_origin_fetch_spec "${PROJECT_ROOT}/OpenScan3"
+
   log "Updating git submodules (remote tracking)..."
-  git -C "${PROJECT_ROOT}" submodule update --init --checkout --recursive --remote
+  git -C "${PROJECT_ROOT}" submodule update --checkout --recursive --remote
 fi
 
 TMP_DIR="$(mktemp -d)"
