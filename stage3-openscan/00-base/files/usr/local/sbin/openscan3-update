@@ -17,7 +17,6 @@ GITHUB_REPO="OpenScan-org/OpenScan3-Client"
 SPA_ZIP="spa.zip"
 GITHUB_RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/${SPA_ZIP}"
 DEFAULT_BRANCH="develop"
-GPHOTO2_VERSION="2.5.1"
 PIWHEELS_INDEX_URL="https://www.piwheels.org/simple"
 
 BRANCH=""
@@ -80,6 +79,18 @@ runuser -u openscan -- bash -lc "set -e; cd '${SRC_DIR}'; git checkout -B '${BRA
 
 log "Syncing source to working tree ${DST_DIR} (excluding .git)..."
 rsync -a --delete --exclude '.git' "${SRC_DIR}/" "${DST_DIR}/"
+
+PYPROJECT_PATH="${DST_DIR}/pyproject.toml"
+log "Determining gphoto2 version from ${PYPROJECT_PATH}..."
+if [[ ! -f "${PYPROJECT_PATH}" ]]; then
+  err "pyproject.toml not found at ${PYPROJECT_PATH}"
+  exit 1
+fi
+GPHOTO2_VERSION="$(sed -n 's/^[[:space:]]*"gphoto2==\([^"]*\)".*$/\1/p' "${PYPROJECT_PATH}" | head -n 1)"
+if [[ -z "${GPHOTO2_VERSION}" ]]; then
+  err "gphoto2 dependency not found in ${PYPROJECT_PATH}"
+  exit 1
+fi
 
 log "Recreating venv and reinstalling package..."
 rm -rf "${DST_DIR}/venv"

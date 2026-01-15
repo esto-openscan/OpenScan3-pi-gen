@@ -6,7 +6,18 @@ SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 PROJECT_ROOT="$(readlink -f "${SCRIPT_DIR}/../..")"
 SUBMODULE_DIR="${PROJECT_ROOT}/OpenScan3"
 SUBMODULE_GIT_DIR="${PROJECT_ROOT}/OpenScan3-git"
-GPHOTO2_PYPI_VERSION="2.5.1"
+PYPROJECT_FILE="${SUBMODULE_DIR}/pyproject.toml"
+
+if [ ! -f "${PYPROJECT_FILE}" ]; then
+  echo "pyproject.toml not found at ${PYPROJECT_FILE}" >&2
+  exit 1
+fi
+
+GPHOTO2_PYPI_VERSION="$(sed -n 's/^[[:space:]]*"gphoto2==\([^"]*\)".*$/\1/p' "${PYPROJECT_FILE}" | head -n 1)"
+if [ -z "${GPHOTO2_PYPI_VERSION}" ]; then
+  echo "gphoto2 dependency not found in ${PYPROJECT_FILE}" >&2
+  exit 1
+fi
 PIWHEELS_INDEX_URL="https://www.piwheels.org/simple"
 
 export GPHOTO2_PYPI_VERSION
