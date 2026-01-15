@@ -85,8 +85,8 @@ require_cmd unzip
 if [[ $SKIP_SUBMODULES -eq 0 ]]; then
   log "Syncing git submodules..."
   git -C "${PROJECT_ROOT}" submodule sync --recursive
-  log "Updating git submodules..."
-  git -C "${PROJECT_ROOT}" submodule update --init --recursive
+  log "Updating git submodules (remote tracking)..."
+  git -C "${PROJECT_ROOT}" submodule update --init --checkout --recursive --remote
 fi
 
 TMP_DIR="$(mktemp -d)"
