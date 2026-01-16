@@ -16,7 +16,7 @@ CLIENT_DIR="/opt/openscan3-client"
 GITHUB_REPO="OpenScan-org/OpenScan3-Client"
 SPA_ZIP="spa.zip"
 GITHUB_RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/${SPA_ZIP}"
-DEFAULT_BRANCH="develop"
+DEFAULT_BRANCH="main"
 PIWHEELS_INDEX_URL="https://www.piwheels.org/simple"
 
 BRANCH=""
