@@ -79,7 +79,7 @@ Your build variant is chosen via the `.env` config used at build time (see `came
   - Minimal PHP page to:
     - Download OpenScan3 device settings as tar.gz (`/etc/openscan3`).
     - Download the packaged OpenScan3-Client bundle (`/opt/openscan3-client`).
-    - Trigger a quick update (see below). Default branch is `develop`.
+    - Trigger a quick update (see below). Default branch is `main`.
   - Security: No authentication by default. Use only on trusted networks.
 
 ## Services and logs
@@ -129,8 +129,8 @@ sudo systemctl restart openscan3
 
 - CLI:
   ```bash
-  # Default branch is develop; add --keep-settings to preserve local overrides
-  sudo /usr/local/sbin/openscan3-update --branch develop [--keep-settings]
+  # Default branch is main; add --keep-settings to preserve local overrides
+  sudo /usr/local/sbin/openscan3-update --branch main [--keep-settings]
   ```
   - Stops services, force-resets `/opt/openscan3-src` to `origin/<branch>`, syncs to `/opt/openscan3`, rebuilds the venv, refreshes `/etc/openscan3` unless retained, downloads the latest OpenScan3-Client bundle, then restarts services.
 

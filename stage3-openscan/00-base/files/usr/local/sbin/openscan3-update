@@ -13,9 +13,9 @@ SRC_DIR="/opt/openscan3-src"
 DST_DIR="/opt/openscan3"
 SETTINGS_DIR="/etc/openscan3"
 CLIENT_DIR="/opt/openscan3-client"
-GITHUB_REPO="OpenScan-org/OpenScan3-Client"
-SPA_ZIP="spa.zip"
-GITHUB_RELEASE_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/${SPA_ZIP}"
+CLIENT_GITHUB_REPO="OpenScan-org/OpenScan3-Client"
+CLIENT_SPA_ZIP="spa.zip"
+CLIENT_GITHUB_RELEASE_URL="https://github.com/${CLIENT_GITHUB_REPO}/releases/latest/download/${CLIENT_SPA_ZIP}"
 DEFAULT_BRANCH="main"
 PIWHEELS_INDEX_URL="https://www.piwheels.org/simple"
 
@@ -45,13 +45,7 @@ get_remote() {
   runuser -u openscan -- git -C "${SRC_DIR}" remote 2>/dev/null | head -n1 || true
 }
 
-# Determine branch: use provided, or current, or default
-if [[ -z "${BRANCH}" && -d "${SRC_DIR}/.git" ]]; then
-  CURRENT_BRANCH=$(runuser -u openscan -- git -C "${SRC_DIR}" rev-parse --abbrev-ref HEAD 2>/dev/null || true)
-  if [[ -n "${CURRENT_BRANCH}" && "${CURRENT_BRANCH}" != "HEAD" ]]; then
-    BRANCH="${CURRENT_BRANCH}"
-  fi
-fi
+# Determine branch: use provided or default
 : "${BRANCH:=${DEFAULT_BRANCH}}"
 
 REMOTE=$(get_remote)
@@ -119,9 +113,9 @@ log "Downloading latest OpenScan3-Client from GitHub releases..."
 TMP_DIR=$(mktemp -d)
 trap "rm -rf '${TMP_DIR}'" EXIT
 
-ZIP_FILE="${TMP_DIR}/${SPA_ZIP}"
-log "Downloading from ${GITHUB_RELEASE_URL}..."
-curl -fsSL -o "${ZIP_FILE}" "${GITHUB_RELEASE_URL}"
+ZIP_FILE="${TMP_DIR}/${CLIENT_SPA_ZIP}"
+log "Downloading from ${CLIENT_GITHUB_RELEASE_URL}..."
+curl -fsSL -o "${ZIP_FILE}" "${CLIENT_GITHUB_RELEASE_URL}"
 if [[ ! -f "${ZIP_FILE}" ]]; then
   log "ERROR: Failed to download client archive"
   exit 1

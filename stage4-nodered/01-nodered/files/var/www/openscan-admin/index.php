@@ -112,8 +112,8 @@ if ($action === 'download_flows') {
 
 $updateCmdline = null;
 if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $branch = trim((string)($_POST['branch'] ?? 'develop'));
-    if ($branch === '') { $branch = 'develop'; }
+    $branch = trim((string)($_POST['branch'] ?? 'main'));
+    if ($branch === '') { $branch = 'main'; }
     $keepSettings = isset($_POST['keep_settings']);
     $keepNodeRed = isset($_POST['keep_nodered']);
 
@@ -173,7 +173,7 @@ $hostname = trim(shell_exec('hostname 2>/dev/null') ?? '');
         <input type="hidden" name="action" value="update">
         <div class="row">
           <label for="branch">Branch</label>
-          <input id="branch" name="branch" type="text" value="<?= h($_POST['branch'] ?? 'develop') ?>">
+          <input id="branch" name="branch" type="text" value="<?= h($_POST['branch'] ?? 'main') ?>">
         </div>
         <div class="row">
           <div class="warning">Keeping settings or flows can leave stale data behind and trigger hard-to-debug issues. Leave both unchecked unless you know what you're doing. Good luck.</div>
