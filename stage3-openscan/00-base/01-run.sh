@@ -88,6 +88,16 @@ setfacl -Rdm m::rwX /etc/openscan3
 install -d -m 2775 /var/log/openscan3
 chown openscan:openscan /var/log/openscan3
 
+# Prepare persistent data directories for projects and community tasks
+install -d -m 2775 /var/openscan3
+install -d -m 2775 /var/openscan3/projects
+install -d -m 2775 /var/openscan3/community-tasks
+chown -R openscan:openscan /var/openscan3
+setfacl -Rm g::rwX /var/openscan3
+setfacl -Rdm g::rwX /var/openscan3
+setfacl -Rm m::rwX /var/openscan3
+setfacl -Rdm m::rwX /var/openscan3
+
 chown -R openscan:openscan /opt/openscan3 /opt/openscan3-src
 
 # install OpenScan3 as pip package
