@@ -144,6 +144,8 @@ sudo systemctl restart openscan3
 
 ### Recommended: Raspberry Pi Imager
 
+> **Note:** Advanced customization (hostname, user, Wi‑Fi, etc.) is confirmed to work with Raspberry Pi Imager 1.8.5. Later releases have shown inconsistent behavior with these settings, so stick to 1.8.5 if you rely on the built-in customizer.
+
 1. Open Raspberry Pi Imager (v1.7+ recommended).
 2. OS → Use custom → select your built image from `pi-gen/deploy/`.
 3. Storage → select your microSD card.
