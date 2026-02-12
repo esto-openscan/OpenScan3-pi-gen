@@ -41,17 +41,6 @@ if [ ! -f "${CONFIG_HELPER}" ]; then
     exit 1
 fi
 
-# Offer cleanup before build
-if [ "${SKIP_CLEANUP}" -eq 0 ] && [ -f "${CLEANUP_SCRIPT}" ]; then
-    echo ""
-    read -p "Do you want to clean all caches, work, deploy directories and Docker images before building? [y/N] " -n 1 -r
-    echo ""
-    if [[ $REPLY =~ ^[Yy]$ ]]; then
-        bash "${CLEANUP_SCRIPT}"
-        echo ""
-    fi
-fi
-
 # shellcheck disable=SC1090
 source "${CONFIG_HELPER}"
 
@@ -83,6 +72,17 @@ if [ "$#" -gt 0 ]; then
                 ;;
         esac
     done
+fi
+
+# Offer cleanup before build (after parsing --skip-cleanup)
+if [ "${SKIP_CLEANUP}" -eq 0 ] && [ -f "${CLEANUP_SCRIPT}" ]; then
+    echo ""
+    read -p "Do you want to clean all caches, work, deploy directories and Docker images before building? [y/N] " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        bash "${CLEANUP_SCRIPT}"
+        echo ""
+    fi
 fi
 
 if [ "${#CAM_CONFIGS[@]}" -eq 0 ]; then
