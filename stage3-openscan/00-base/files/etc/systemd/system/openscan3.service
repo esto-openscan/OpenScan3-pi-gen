@@ -10,10 +10,19 @@ Group=openscan
 
 WorkingDirectory=/opt/openscan3
 Environment="PATH=/opt/openscan3/venv/bin:/usr/local/bin:/usr/bin:/bin"
+
 Environment="VIRTUAL_ENV=/opt/openscan3/venv"
+
 Environment="OPENSCAN_LOG_DIR=/var/log/openscan3"
 Environment="OPENSCAN_SETTINGS_DIR=/etc/openscan3"
 
+Environment="OPENSCAN_RUNTIME_DIR=/var/openscan3"
+Environment="OPENSCAN_PROJECT_DIR=/var/openscan3/projects"
+Environment="OPENSCAN_COMMUNITY_TASKS_DIR=/var/openscan3/community-tasks"
+
+# activate for developing of own tasks:
+OPENSCAN_TASK_AUTODISCOVERY=0
+OPENSCAN_TASK_OVERRIDE_ON_CONFLICT=0
 
 ExecStart=/usr/local/bin/openscan3 serve --root-path /api --reload-trigger
 Restart=on-failure

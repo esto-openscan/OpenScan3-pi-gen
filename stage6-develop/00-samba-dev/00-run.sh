@@ -48,6 +48,18 @@ cat <<'CONF' >> /etc/samba/smb.conf
    create mask = 0664
    directory mask = 2775
 
+[openscan-logs]
+   comment = OpenScan3 Logs (read-only)
+   path = /var/log/openscan3
+   browseable = yes
+   guest ok = yes
+   read only = yes
+   writeable = no
+   force user = openscan
+   force group = openscan
+   create mask = 0444
+   directory mask = 0555
+
 CONF
 
 systemctl restart smbd nmbd || true
