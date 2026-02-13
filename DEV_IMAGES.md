@@ -5,10 +5,10 @@ This document summarizes the additional steps that are applied when building the
 development, rapid iteration, and debugging, and they do **not** ship in regular
 production images.
 
-> **Security warning:** develop images deliberately expose writable Samba
-> shares, task overrides, and other debug conveniences. Treat them as
-> inherently unsafe and operate only inside isolated, trusted subnets without
-> external access.
+> Security note: develop images expose writable Samba shares, automatic task
+> discovery settings which means arbitrary code execution, and other debug
+> conveniences that are not suitable for production. Use them only inside
+> trusted, isolated networks.
 
 ## Stage overview
 
@@ -30,6 +30,8 @@ image:
   - Mirrors the persistent community task directory for quick sync.
 - **`[openscan-dev]`** → `/opt/openscan3`
   - Exposes the firmware checkout so developers can push/pull changes remotely.
+- **`[openscan-logs]`** → `/var/log/openscan3`
+  - Read-only access to runtime logs for quick tailing over the network without SSH.
 
 All three shares inherit `force user/group = openscan` and `0664/2775` masks so
 files created from a Samba client have the expected permissions.
@@ -51,6 +53,15 @@ Using a systemd drop-in keeps the base unit (`stage3-openscan/00-base/.../opensc
 untouched. These variables enable automatic registration of tasks and allow
 community tasks to override built-in task names when necessary, which is helpful
 for experimental development.
+
+## FastAPI reload workflow
+
+The base service unit (`stage3-openscan/00-base/files/etc/systemd/system/openscan3.service`)
+starts FastAPI via `openscan3 serve --root-path /api --reload-trigger`. The CLI maps this flag
+to uvicorn's file-watching reload mode and points it at the firmware checkout's
+`.reload-trigger` sentinel. When developing inside the `stage6-develop` image, touching that
+file (or using `/latest/develop/restart`) forces uvicorn to reload so code changes are applied
+immediately without rebooting or restarting the service.
 
 ## Lifecycle notes
 
