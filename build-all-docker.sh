@@ -121,9 +121,6 @@ if [ -x "${DOCKER_WRAPPER}" ] && [ -f "${PROJECT_ROOT}/pi-gen-Dockerfile" ]; the
 fi
 
 QEMU_BINFMT_DIR="/usr/libexec/qemu-binfmt"
-if [ -d "${QEMU_BINFMT_DIR}" ]; then
-    export PIGEN_DOCKER_OPTS="${PIGEN_DOCKER_OPTS:-} --volume=${QEMU_BINFMT_DIR}:${QEMU_BINFMT_DIR}:ro"
-fi
 
 for cam_config in "${CAM_CONFIGS[@]}"; do
     if [ "$cam_config" = "${COMMON_ENV}" ]; then
@@ -215,6 +212,10 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
     fi
 
     config_path=$(realpath "$tmp_config")
+
+    if [ -d "${QEMU_BINFMT_DIR:-}" ]; then
+        docker_volume_opts+=("--volume=${QEMU_BINFMT_DIR}:${QEMU_BINFMT_DIR}:ro")
+    fi
 
     docker_opts_string="${docker_volume_opts[*]}"
 
