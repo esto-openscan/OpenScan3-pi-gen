@@ -100,12 +100,25 @@ if [ "${#CAM_CONFIGS[@]}" -eq 0 ]; then
 fi
 
 cleanup_configs=()
+qemu_shim_dir=""
 cleanup() {
     for cfg in "${cleanup_configs[@]}"; do
         [ -f "$cfg" ] && rm -f "$cfg"
     done
+    [ -n "${qemu_shim_dir}" ] && rm -rf "${qemu_shim_dir}"
 }
 trap cleanup EXIT
+
+if ! command -v qemu-aarch64 >/dev/null 2>&1 && command -v qemu-aarch64-static >/dev/null 2>&1; then
+    qemu_shim_dir=$(mktemp -d)
+    ln -s "$(which qemu-aarch64-static)" "${qemu_shim_dir}/qemu-aarch64"
+    export PATH="${qemu_shim_dir}:${PATH}"
+fi
+
+DOCKER_WRAPPER="${PROJECT_ROOT}/scripts/docker-wrapper.sh"
+if [ -x "${DOCKER_WRAPPER}" ] && [ -f "${PROJECT_ROOT}/pi-gen-Dockerfile" ]; then
+    export DOCKER="${DOCKER_WRAPPER}"
+fi
 
 for cam_config in "${CAM_CONFIGS[@]}"; do
     if [ "$cam_config" = "${COMMON_ENV}" ]; then
