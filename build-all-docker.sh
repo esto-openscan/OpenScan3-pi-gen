@@ -122,6 +122,11 @@ fi
 
 QEMU_BINFMT_DIR="/usr/libexec/qemu-binfmt"
 
+if [ -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ] && ! grep -q "flags:.*F" /proc/sys/fs/binfmt_misc/qemu-aarch64; then
+    echo "Removing non-F binfmt qemu-aarch64 entry (Docker needs the F flag)..."
+    echo -1 | sudo tee /proc/sys/fs/binfmt_misc/qemu-aarch64 > /dev/null
+fi
+
 for cam_config in "${CAM_CONFIGS[@]}"; do
     if [ "$cam_config" = "${COMMON_ENV}" ]; then
         continue
