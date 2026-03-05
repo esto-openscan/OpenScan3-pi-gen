@@ -13,3 +13,5 @@ python3-kms++
 python3-opencv
 python3-numpy
 acl
+raspi-config-vendor
+rpi-usb-gadget
