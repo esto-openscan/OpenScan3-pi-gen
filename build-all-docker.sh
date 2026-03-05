@@ -120,6 +120,11 @@ if [ -x "${DOCKER_WRAPPER}" ] && [ -f "${PROJECT_ROOT}/pi-gen-Dockerfile" ]; the
     export DOCKER="${DOCKER_WRAPPER}"
 fi
 
+QEMU_BINFMT_DIR="/usr/libexec/qemu-binfmt"
+if [ -d "${QEMU_BINFMT_DIR}" ]; then
+    export PIGEN_DOCKER_OPTS="${PIGEN_DOCKER_OPTS:-} --volume=${QEMU_BINFMT_DIR}:${QEMU_BINFMT_DIR}:ro"
+fi
+
 for cam_config in "${CAM_CONFIGS[@]}"; do
     if [ "$cam_config" = "${COMMON_ENV}" ]; then
         continue
