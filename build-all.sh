@@ -6,6 +6,7 @@ CONFIG_DIR="build-configs"
 COMMON_ENV="${CONFIG_DIR}/base.env"
 CONFIG_HELPER="scripts/config-loader.sh"
 CLEANUP_SCRIPT="scripts/cleanup.sh"
+FINAL_DEPLOY_DIR="${FINAL_DEPLOY_DIR:-deploy}"
 
 if [ ! -f "${COMMON_ENV}" ]; then
     echo "Missing common OpenScan base environment at '${COMMON_ENV}'" >&2
@@ -47,6 +48,81 @@ if command -v sudo >/dev/null 2>&1; then
 else
     SUDO=""
 fi
+
+copy_sanitized_artifacts() {
+    local flavor_suffix="${1:-}"
+    local src_dir="${PI_GEN_DIR}/deploy"
+    local dst_dir="${FINAL_DEPLOY_DIR}"
+    local base_name="${IMG_NAME}"
+    local owner="${SUDO_USER:-$USER}"
+    local matched=0
+    local file ext dest
+
+    mkdir -p "${dst_dir}"
+
+    shopt -s nullglob
+    for file in "${src_dir}"/*-"${base_name}"*; do
+        case "${file}" in
+            *.img.xz)
+                ext=".img.xz"
+                ;;
+            *.img.gz)
+                ext=".img.gz"
+                ;;
+            *.img.zip)
+                ext=".img.zip"
+                ;;
+            *.img)
+                ext=".img"
+                ;;
+            *.zip)
+                ext=".zip"
+                ;;
+            *.info)
+                ext=".info"
+                ;;
+            *.bmap)
+                ext=".bmap"
+                ;;
+            *.bmap.gz)
+                ext=".bmap.gz"
+                ;;
+            *.sbom)
+                ext=".sbom"
+                ;;
+            *.sbom.xz)
+                ext=".sbom.xz"
+                ;;
+            *.spdx.json)
+                ext=".spdx.json"
+                ;;
+            *.spdx.json.xz)
+                ext=".spdx.json.xz"
+                ;;
+            *.sha256)
+                ext=".sha256"
+                ;;
+            *)
+                continue
+                ;;
+        esac
+
+        dest="${dst_dir}/${base_name}${flavor_suffix}${ext}"
+        if [ -n "${SUDO}" ]; then
+            ${SUDO} cp -f "${file}" "${dest}"
+            ${SUDO} chown "${owner}:${owner}" "${dest}"
+        else
+            cp -f "${file}" "${dest}"
+        fi
+        echo "Exported $(basename "${file}") -> ${dest}"
+        matched=1
+    done
+    shopt -u nullglob
+
+    if [ "${matched}" -eq 0 ]; then
+        echo "Warning: No artifacts matching ${base_name} found in ${src_dir}" >&2
+    fi
+}
 
 ENABLE_STAGE6=0
 
@@ -92,5 +168,12 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
         STAGE_LIST_FOR_BUILD="${STAGE_LIST_FOR_BUILD# }"
     fi
 
+    build_suffix=""
+    if [ "$ENABLE_STAGE6" -eq 1 ]; then
+        build_suffix="_DEVELOP"
+    fi
+
     ${SUDO:+$SUDO }CAMERA_TYPE=$CAMERA_TYPE IMG_NAME=$IMG_NAME          STAGE_LIST="$STAGE_LIST_FOR_BUILD"          TARGET_HOSTNAME="${TARGET_HOSTNAME}"          "$PI_GEN_DIR"/build.sh
+
+    copy_sanitized_artifacts "$build_suffix"
 done

@@ -13,7 +13,7 @@ from typing import Any, Dict, Iterable, List, Optional
 
 
 DEPLOY_EXTENSIONS: tuple[str, ...] = (".img", ".img.xz", ".img.gz", ".img.zip")
-BUILD_ID_PATTERN = re.compile(r"^(?P<date>\d{4}-\d{2}-\d{2})-(?P<name>.+)$")
+BUILD_ID_PATTERN = re.compile(r"^(?:image_)?(?P<date>\d{4}-\d{2}-\d{2})-(?P<name>.+)$")
 
 
 @dataclass
@@ -27,7 +27,8 @@ class Variant:
     icon: Optional[str]
 
     def matches(self, build_id: str) -> bool:
-        return build_id.endswith(f"_{self.suffix}")
+        suffix_pattern = rf"_{re.escape(self.suffix)}(?:-[\w.-]+)*$"
+        return re.search(suffix_pattern, build_id) is not None
 
 
 def parse_args() -> argparse.Namespace:
