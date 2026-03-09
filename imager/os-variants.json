@@ -45,7 +45,7 @@
       "description": "Baseline OpenScan3 firmware for Raspberry Pi OS Lite with USB cameras or HQ cam via HDMI capture.",
       "devices": ["pi5", "pi4", "pi400", "pi3", "all"],
       "capabilities": ["usb_otg"],
-      "init_format": "cloudinit-rpi"
+      "init_format": "cloudinit"
     },
     {
       "suffix": "imx519",
@@ -54,7 +54,7 @@
       "description": "Optimised for the Arducam IMX519 camera with drivers and tuning blobs pre-installed.",
       "devices": ["pi5", "pi4", "pi400", "all"],
       "capabilities": ["usb_otg"],
-      "init_format": "cloudinit-rpi"
+      "init_format": "cloudinit"
     },
     {
       "suffix": "hawkeye-experimental",
@@ -63,7 +63,7 @@
       "description": "Experimental build that ships the Arducam HawkEye drivers and tuning blobs pre-installed.",
       "devices": ["pi5", "pi4", "pi400", "all"],
       "capabilities": ["usb_otg"],
-      "init_format": "cloudinit-rpi"
+      "init_format": "cloudinit"
     }
   ]
 }
