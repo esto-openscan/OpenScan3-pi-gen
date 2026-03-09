@@ -8,11 +8,12 @@ import hashlib
 import json
 import re
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 
-DEPLOY_EXTENSIONS: tuple[str, ...] = (".img", ".img.xz", ".img.gz", ".img.zip")
+DEPLOY_EXTENSIONS: tuple[str, ...] = (".img", ".img.xz", ".img.gz", ".img.zip", ".zip")
 BUILD_ID_PATTERN = re.compile(r"^(?:image_)?(?P<date>\d{4}-\d{2}-\d{2})-(?P<name>.+)$")
 
 
@@ -127,12 +128,20 @@ def build_os_entry(
     return entry
 
 
+def infer_release_date(build_id: str, artifact: Path) -> str:
+    try:
+        return extract_release_date(build_id)
+    except ValueError:
+        timestamp = datetime.fromtimestamp(artifact.stat().st_mtime, tz=timezone.utc)
+        return timestamp.date().isoformat()
+
+
 def select_latest_artifact(variant: Variant, artifacts: List[Path]) -> tuple[Path, str]:
     matching: list[tuple[str, Path]] = []
     for path in artifacts:
         build_id = canonical_build_id(path)
         if variant.matches(build_id):
-            release_date = extract_release_date(build_id)
+            release_date = infer_release_date(build_id, path)
             matching.append((release_date, path))
     if not matching:
         raise FileNotFoundError(f"No artifact found for variant '{variant.suffix}'")
