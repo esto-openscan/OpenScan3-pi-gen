@@ -50,7 +50,7 @@ set -e
 
 adduser --system --group --home /opt/openscan3 openscan
 # Add openscan user to relevant hardware groups
-for grp in camera video render plugdev input i2c spi gpio; do
+for grp in camera video render plugdev input i2c spi gpio netdev; do
   groupadd -f "$grp"
   adduser openscan "$grp"
 done
@@ -109,19 +109,47 @@ chmod +x /usr/local/bin/openscan3
 systemctl enable openscan3
 
 # Allow 'openscan' to control the OpenScan3 service and read logs without a password
-cat >/etc/sudoers.d/openscan-nodered <<'SUDOERS'
-openscan ALL=(root) NOPASSWD:/bin/systemctl start openscan3,/bin/systemctl stop openscan3,/bin/systemctl restart openscan3,/bin/systemctl status openscan3
-openscan ALL=(root) NOPASSWD:/usr/bin/systemctl start openscan3,/usr/bin/systemctl stop openscan3,/usr/bin/systemctl restart openscan3,/usr/bin/systemctl status openscan3
-openscan ALL=(root) NOPASSWD:/bin/journalctl -u openscan3 *,/usr/bin/journalctl -u openscan3 *
-openscan ALL=(root) NOPASSWD:/sbin/shutdown,/sbin/reboot
-openscan ALL=(root) NOPASSWD:/usr/sbin/shutdown,/usr/sbin/reboot
+cat >/etc/sudoers.d/openscan-service <<'SUDOERS'
+openscan ALL=(root) NOPASSWD:/usr/bin/systemctl start openscan3
+openscan ALL=(root) NOPASSWD:/usr/bin/systemctl stop openscan3
+openscan ALL=(root) NOPASSWD:/usr/bin/systemctl restart openscan3
+openscan ALL=(root) NOPASSWD:/usr/bin/systemctl status openscan3
+openscan ALL=(root) NOPASSWD:/usr/bin/journalctl -u openscan3
+openscan ALL=(root) NOPASSWD:/usr/bin/journalctl -u openscan3 -n *
+openscan ALL=(root) NOPASSWD:/usr/bin/journalctl -u openscan3 -f
+openscan ALL=(root) NOPASSWD:/usr/bin/journalctl -u openscan3 --no-pager
+openscan ALL=(root) NOPASSWD:/usr/bin/journalctl -u openscan3 --no-pager -n *
+openscan ALL=(root) NOPASSWD:/usr/sbin/shutdown now
+openscan ALL=(root) NOPASSWD:/usr/sbin/reboot
 SUDOERS
-chmod 0440 /etc/sudoers.d/openscan-nodered
+chmod 0440 /etc/sudoers.d/openscan-service
+rm -f /etc/sudoers.d/openscan-nodered
 
 # Allow running the updater from CLI (openscan) and via web (www-data)
 cat >/etc/sudoers.d/openscan-updater <<'SUDOERS'
-openscan ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update *
-www-data ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update *
+openscan ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update
+openscan ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --branch *
+openscan ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --keep-settings
+openscan ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --branch * --keep-settings
+www-data ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update
+www-data ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --branch *
+www-data ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --keep-settings
+www-data ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --branch * --keep-settings
 SUDOERS
 chmod 0440 /etc/sudoers.d/openscan-updater
+
+# Allow 'openscan' to manage WiFi connections via nmcli
+cat >/etc/sudoers.d/openscan-network <<'SUDOERS'
+openscan ALL=(root) NOPASSWD:/usr/bin/nmcli device wifi list
+openscan ALL=(root) NOPASSWD:/usr/bin/nmcli device wifi list *
+openscan ALL=(root) NOPASSWD:/usr/bin/nmcli device wifi rescan
+openscan ALL=(root) NOPASSWD:/usr/bin/nmcli device wifi connect *
+openscan ALL=(root) NOPASSWD:/usr/bin/nmcli connection show
+openscan ALL=(root) NOPASSWD:/usr/bin/nmcli connection show *
+openscan ALL=(root) NOPASSWD:/usr/bin/nmcli connection delete *
+openscan ALL=(root) NOPASSWD:/usr/bin/nmcli connection up *
+openscan ALL=(root) NOPASSWD:/usr/bin/nmcli connection down *
+openscan ALL=(root) NOPASSWD:/usr/bin/nmcli general status
+SUDOERS
+chmod 0440 /etc/sudoers.d/openscan-network
 EOF
