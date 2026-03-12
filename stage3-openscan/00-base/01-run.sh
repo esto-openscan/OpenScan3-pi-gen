@@ -30,6 +30,7 @@ fi
 install -m 755 -D files/usr/local/bin/openscan3 "${ROOTFS_DIR}/usr/local/bin/openscan3"
 install -m 644 -D files/etc/systemd/system/openscan3.service "${ROOTFS_DIR}/etc/systemd/system/openscan3.service"
 install -m 755 -D files/usr/local/sbin/openscan3-update "${ROOTFS_DIR}/usr/local/sbin/openscan3-update"
+install -m 644 -D files/etc/avahi/services/openscan3.service "${ROOTFS_DIR}/etc/avahi/services/openscan3.service"
 
 rm -rf "${ROOTFS_DIR}/opt/openscan3" "${ROOTFS_DIR}/opt/openscan3-src"
 
@@ -107,6 +108,7 @@ runuser -u openscan -- bash -c 'cd /opt/openscan3 && source venv/bin/activate &&
 
 chmod +x /usr/local/bin/openscan3
 systemctl enable openscan3
+systemctl enable avahi-daemon
 
 # Allow 'openscan' to control the OpenScan3 service and read logs without a password
 cat >/etc/sudoers.d/openscan-service <<'SUDOERS'

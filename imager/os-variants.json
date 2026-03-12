@@ -34,7 +34,7 @@
   },
   "category": {
     "name": "OpenScan3",
-    "description": "Self-hostable photogrammetry firmware images with Raspberry Pi Imager customisation.",
+    "description": "Firmware images for open 3d-scanner.",
     "icon": null
   },
   "variants": [
@@ -42,7 +42,7 @@
       "suffix": "generic",
       "camera_type": "generic",
       "name": "OpenScan3 (Generic Picamera/USB/HQ/DLSR)",
-      "description": "Baseline OpenScan3 firmware for Raspberry Pi OS Lite with USB cameras or HQ cam via HDMI capture.",
+      "description": "Baseline OpenScan3 firmware for Raspberry Pi Camera Module 3 or other cameras.",
       "devices": ["pi5", "pi4", "pi400", "pi3", "all"],
       "capabilities": ["usb_otg"],
       "init_format": "cloudinit"
@@ -50,7 +50,7 @@
     {
       "suffix": "imx519",
       "camera_type": "imx519",
-      "name": "OpenScan3 (Arducam 16MP IMX519)",
+      "name": "OpenScan3 (Arducam IMX519 16MP)",
       "description": "Optimised for the Arducam IMX519 camera with drivers and tuning blobs pre-installed.",
       "devices": ["pi5", "pi4", "pi400", "all"],
       "capabilities": ["usb_otg"],
@@ -59,7 +59,7 @@
     {
       "suffix": "hawkeye-experimental",
       "camera_type": "arducam-64mp",
-      "name": "OpenScan3 (Arducam 64MP HawkEye)",
+      "name": "OpenScan3 (Hawkeye 64MP)",
       "description": "Experimental build that ships the Arducam HawkEye drivers and tuning blobs pre-installed.",
       "devices": ["pi5", "pi4", "pi400", "all"],
       "capabilities": ["usb_otg"],

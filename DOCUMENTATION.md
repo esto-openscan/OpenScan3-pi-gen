@@ -64,7 +64,9 @@ Your build variant is chosen via the `.env` config used at build time (see `came
 - **Network**:
   - If Wi‑Fi was configured in Raspberry Pi Imager, the Pi will join that network on first boot.
 - **Hostname**: Use the hostname you set in Raspberry Pi Imager. If not set, it defaults to `openscan3-alpha`.
-- **Discovery**: Default hostname is `http://openscan3-alpha/` and in networks with mDNS enabled it will be discoverable as `http://openscan3-alpha.local/`.
+- **Discovery**:
+  - Default hostname is `http://openscan3-alpha/` and via mDNS it resolves as `http://openscan3-alpha.local/`.
+  - Avahi publishes `_http._tcp` and `_smb._tcp` DNS‑SD records automatically, so Windows/macOS/Linux network browsers show an “OpenScan3” web endpoint and Samba share without extra setup. Changing the hostname (e.g., in Raspberry Pi Imager) propagates to these announcements on next boot.
 
 ## Accessing the web UI
 

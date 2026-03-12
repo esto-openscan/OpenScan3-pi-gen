@@ -54,6 +54,11 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Optional HTTP(S) base URL where artifacts will be hosted. The filename is appended to this prefix.",
     )
+    parser.add_argument(
+        "--release-date",
+        default=None,
+        help="ISO date (YYYY-MM-DD) to force as release_date for every entry.",
+    )
     return parser.parse_args()
 
 
@@ -172,6 +177,7 @@ def main() -> None:
     variants_path = Path(args.variants)
     deploy_dir = Path(args.deploy_dir)
     output_path = Path(args.output)
+    release_date_override: Optional[str] = args.release_date
 
     imager_meta, category_meta, variants = load_variants(variants_path)
     artifacts = list(iter_artifacts(deploy_dir))
@@ -179,6 +185,8 @@ def main() -> None:
     os_entries: List[Dict[str, Any]] = []
     for variant in variants:
         artifact, release_date = select_latest_artifact(variant, artifacts)
+        if release_date_override:
+            release_date = release_date_override
         os_entry = build_os_entry(variant, artifact, release_date, args.url_prefix)
         os_entries.append(os_entry)
 
