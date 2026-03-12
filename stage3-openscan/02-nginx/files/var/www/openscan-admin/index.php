@@ -113,6 +113,20 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 $hostname = trim(shell_exec('hostname 2>/dev/null') ?? '');
+$scheme = 'http';
+if (!empty($_SERVER['HTTP_X_FORWARDED_PROTO'])) {
+    $scheme = explode(',', $_SERVER['HTTP_X_FORWARDED_PROTO'])[0];
+} elseif (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off') {
+    $scheme = 'https';
+}
+$hostHeader = trim($_SERVER['HTTP_HOST'] ?? '');
+if ($hostHeader !== '') {
+    $homeUrl = $scheme . '://' . $hostHeader . '/';
+} elseif ($hostname !== '') {
+    $homeUrl = $scheme . '://' . $hostname . '.local/';
+} else {
+    $homeUrl = '/';
+}
 ?>
 <!doctype html>
 <html lang="en">
@@ -139,7 +153,7 @@ $hostname = trim(shell_exec('hostname 2>/dev/null') ?? '');
 <body>
 <div class="container">
   <h1>OpenScan Admin</h1>
-  <p class="muted">Host: <?= h($hostname) ?> · This page lets you export settings and trigger an update.</p>
+  <p class="muted">Host: <?= h($hostname) ?> · This page lets you export settings and trigger an update. <a class="btn" href="<?= h($homeUrl) ?>">Back to Web UI</a></p>
 
   <div class="cards">
     <div class="card">
@@ -180,6 +194,7 @@ $hostname = trim(shell_exec('hostname 2>/dev/null') ?? '');
     stream_command($updateCmdline);
 ?>
     </div>
+    <p><a class="btn" href="<?= h($homeUrl) ?>">Back to Web UI</a></p>
   <?php endif; ?>
 </div>
 </body>
