@@ -1,0 +1,17 @@
+#cloud-init-net-config
+network:
+  version: 2
+  renderer: NetworkManager
+  ethernets:
+    eth0:
+      dhcp4: true
+      optional: true
+  wifis:
+    wlan0:
+      dhcp4: true
+      dhcp6: false
+      optional: true
+      access-points:
+        "_nm-placeholder-do-not-use_":
+          password: ""
+          mode: ap
