@@ -35,10 +35,27 @@ class Variant:
     icon: Optional[str]
     website: Optional[str]
     architecture: Optional[str]
+    is_develop: bool = False
 
     def matches(self, build_id: str) -> bool:
         suffix_pattern = rf"_{re.escape(self.suffix)}(?:-[\w.-]+)*$"
         return re.search(suffix_pattern, build_id) is not None
+
+    def develop_variant(self) -> "Variant":
+        if self.is_develop:
+            raise ValueError("Cannot derive develop variant from an existing develop variant")
+        return Variant(
+            suffix=f"{self.suffix}_DEVELOP",
+            name=f"{self.name} (Develop)",
+            description=f"{self.description} (stage6 developer services enabled)",
+            devices=self.devices,
+            capabilities=self.capabilities,
+            init_format=self.init_format,
+            icon=self.icon,
+            website=self.website,
+            architecture=self.architecture,
+            is_develop=True,
+        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -285,6 +302,16 @@ def main() -> None:
             release_date = release_date_override
         os_entry = build_os_entry(variant, artifact, release_date, url_prefix)
         os_entries.append(os_entry)
+
+        develop_variant = variant.develop_variant()
+        try:
+            dev_artifact, dev_release_date = select_latest_artifact(develop_variant, artifacts)
+        except FileNotFoundError:
+            continue
+        if release_date_override:
+            dev_release_date = release_date_override
+        dev_entry = build_os_entry(develop_variant, dev_artifact, dev_release_date, url_prefix)
+        os_entries.append(dev_entry)
 
     repo = {
         "imager": imager_meta,

@@ -109,6 +109,97 @@ cleanup() {
 }
 trap cleanup EXIT
 
+run_docker_build_variant() {
+    local stage_list="$1"
+    local img_name="$2"
+    local target_hostname="$3"
+    local cam_config="$4"
+    local flavor_label="$5"
+
+    local tmp_config
+    tmp_config=$(mktemp "${TMPDIR:-/tmp}/pigen-docker-config.XXXXXX")
+    cleanup_configs+=("$tmp_config")
+
+    cat "$cam_config" > "$tmp_config"
+    printf '\n' >> "$tmp_config"
+
+    local -a stage_items
+    read -r -a stage_items <<< "$stage_list"
+    local -a container_stage_items=()
+    local -a docker_volume_opts=(
+        "--volume=${HOST_WORK_DIR}:/pi-gen/work"
+        "--volume=${HOST_DEPLOY_DIR}:/pi-gen/deploy"
+        "--volume=${HOST_APT_CACHE_DIR}:/var/cache/apt"
+    )
+
+    local openscan_dir="${PROJECT_ROOT}/OpenScan3"
+    if [ -d "${openscan_dir}" ]; then
+        openscan_dir=$(realpath "${openscan_dir}")
+        docker_volume_opts+=("--volume=${openscan_dir}:/pi-gen/OpenScan3")
+    fi
+
+    local openscan_git_dir="${PROJECT_ROOT}/.git/modules/OpenScan3"
+    if [ -d "${openscan_git_dir}" ]; then
+        openscan_git_dir=$(realpath "${openscan_git_dir}")
+        docker_volume_opts+=("--volume=${openscan_git_dir}:/pi-gen/OpenScan3-git")
+    fi
+
+    local openscan_client_dist="${PROJECT_ROOT}/OpenScan3-client-dist"
+    if [ -d "${openscan_client_dist}" ]; then
+        openscan_client_dist=$(realpath "${openscan_client_dist}")
+        docker_volume_opts+=("--volume=${openscan_client_dist}:/pi-gen/OpenScan3-client-dist")
+    fi
+
+    local stage
+    for stage in "${stage_items[@]}"; do
+        local container_stage host_stage_path host_stage_abs
+        case "$stage" in
+            /*)
+                container_stage="$stage"
+                ;;
+            pi-gen/*)
+                container_stage="/pi-gen/${stage#pi-gen/}"
+                ;;
+            *)
+                container_stage="/pi-gen/${stage}"
+                host_stage_path="$stage"
+                host_stage_abs=$(realpath "$host_stage_path")
+                docker_volume_opts+=("--volume=${host_stage_abs}:${container_stage}")
+                ;;
+        esac
+        if [[ "$stage" == pi-gen/* ]]; then
+            host_stage_abs=$(realpath "$stage")
+            docker_volume_opts+=("--volume=${host_stage_abs}:${container_stage}")
+        fi
+        container_stage_items+=("${container_stage}")
+    done
+
+    printf 'STAGE_LIST="%s"\n' "${container_stage_items[*]}" >> "$tmp_config"
+    printf 'IMG_NAME="%s"\n' "$img_name" >> "$tmp_config"
+    printf 'TARGET_HOSTNAME="%s"\n' "$target_hostname" >> "$tmp_config"
+
+    if ! grep -q '^WORK_DIR=' "$tmp_config"; then
+        printf 'WORK_DIR="%s"\n' "/pi-gen/work/${img_name}" >> "$tmp_config"
+    fi
+
+    local config_path
+    config_path=$(realpath "$tmp_config")
+
+    if [ -d "${QEMU_BINFMT_DIR:-}" ]; then
+        docker_volume_opts+=("--volume=${QEMU_BINFMT_DIR}:${QEMU_BINFMT_DIR}:ro")
+    fi
+
+    local docker_opts_string="${docker_volume_opts[*]}"
+    local label_suffix=""
+    if [ -n "$flavor_label" ]; then
+        label_suffix=" (${flavor_label})"
+    fi
+
+    echo "[Docker] Building image '${img_name}'${label_suffix} using '${cam_config}'"
+    PIGEN_DOCKER_OPTS="${docker_opts_string}" "${BUILD_DOCKER_SCRIPT}" -c "$config_path"
+    echo "[Docker] Completed build for '${img_name}'${label_suffix}"
+}
+
 if ! command -v qemu-aarch64 >/dev/null 2>&1 && command -v qemu-aarch64-static >/dev/null 2>&1; then
     qemu_shim_dir=$(mktemp -d)
     ln -s "$(which qemu-aarch64-static)" "${qemu_shim_dir}/qemu-aarch64"
@@ -149,84 +240,26 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
         exit 1
     fi
 
+    base_stage_list="${STAGE_LIST}"
+    base_img_name="${IMG_NAME}"
+
+    build_stage_lists=("${base_stage_list}")
+    build_img_names=("${base_img_name}")
+    build_labels=("")
+
     if [ "$ENABLE_STAGE6" -eq 1 ]; then
-        STAGE_LIST="${STAGE_LIST} stage6-develop"
-        STAGE_LIST="${STAGE_LIST# }"
+        build_stage_lists+=("${base_stage_list} stage6-develop")
+        build_img_names+=("${base_img_name}_DEVELOP")
+        build_labels+=("develop")
     fi
 
-    tmp_config=$(mktemp "${TMPDIR:-/tmp}/pigen-docker-config.XXXXXX")
-    cleanup_configs+=("$tmp_config")
-
-    cat "$cam_config" > "$tmp_config"
-    printf '\n' >> "$tmp_config"
-
-    read -r -a stage_items <<< "${STAGE_LIST}"
-    container_stage_items=()
-    docker_volume_opts=(
-        "--volume=${HOST_WORK_DIR}:/pi-gen/work"
-        "--volume=${HOST_DEPLOY_DIR}:/pi-gen/deploy"
-        "--volume=${HOST_APT_CACHE_DIR}:/var/cache/apt"
-    )
-
-    OPENSCAN3_DIR="${PROJECT_ROOT}/OpenScan3"
-    if [ -d "${OPENSCAN3_DIR}" ]; then
-        OPENSCAN3_DIR=$(realpath "${OPENSCAN3_DIR}")
-        docker_volume_opts+=("--volume=${OPENSCAN3_DIR}:/pi-gen/OpenScan3")
-    fi
-
-    OPENSCAN3_GIT_DIR="${PROJECT_ROOT}/.git/modules/OpenScan3"
-    if [ -d "${OPENSCAN3_GIT_DIR}" ]; then
-        OPENSCAN3_GIT_DIR=$(realpath "${OPENSCAN3_GIT_DIR}")
-        docker_volume_opts+=("--volume=${OPENSCAN3_GIT_DIR}:/pi-gen/OpenScan3-git")
-    fi
-
-    OPENSCAN3_CLIENT_DIST="${PROJECT_ROOT}/OpenScan3-client-dist"
-    if [ -d "${OPENSCAN3_CLIENT_DIST}" ]; then
-        OPENSCAN3_CLIENT_DIST=$(realpath "${OPENSCAN3_CLIENT_DIST}")
-        docker_volume_opts+=("--volume=${OPENSCAN3_CLIENT_DIST}:/pi-gen/OpenScan3-client-dist")
-    fi
-
-    for stage in "${stage_items[@]}"; do
-        case "$stage" in
-            /*)
-                container_stage="$stage"
-                ;;
-            pi-gen/*)
-                container_stage="/pi-gen/${stage#pi-gen/}"
-                ;;
-            *)
-                container_stage="/pi-gen/${stage}"
-                host_stage_path="$stage"
-                host_stage_abs=$(realpath "$host_stage_path")
-                docker_volume_opts+=("--volume=${host_stage_abs}:${container_stage}")
-                ;;
-        esac
-        if [[ "$stage" == pi-gen/* ]]; then
-            # ensure host path resolution relative to project root
-            host_stage_abs=$(realpath "$stage")
-            docker_volume_opts+=("--volume=${host_stage_abs}:${container_stage}")
-        fi
-        container_stage_items+=("${container_stage}")
+    for idx in "${!build_stage_lists[@]}"; do
+        run_docker_build_variant "${build_stage_lists[$idx]}" \
+            "${build_img_names[$idx]}" \
+            "${TARGET_HOSTNAME}" \
+            "$cam_config" \
+            "${build_labels[$idx]}"
     done
-    printf 'STAGE_LIST="%s"\n' "${container_stage_items[*]}" >> "$tmp_config"
-    printf 'IMG_NAME="%s"\n' "$IMG_NAME" >> "$tmp_config"
-    printf 'TARGET_HOSTNAME="%s"\n' "${TARGET_HOSTNAME}" >> "$tmp_config"
-
-    if ! grep -q '^WORK_DIR=' "$tmp_config"; then
-        printf 'WORK_DIR="%s"\n' "/pi-gen/work/${IMG_NAME}" >> "$tmp_config"
-    fi
-
-    config_path=$(realpath "$tmp_config")
-
-    if [ -d "${QEMU_BINFMT_DIR:-}" ]; then
-        docker_volume_opts+=("--volume=${QEMU_BINFMT_DIR}:${QEMU_BINFMT_DIR}:ro")
-    fi
-
-    docker_opts_string="${docker_volume_opts[*]}"
-
-    echo "[Docker] Building image '${IMG_NAME}' using '${cam_config}'"
-    PIGEN_DOCKER_OPTS="${docker_opts_string}" "${BUILD_DOCKER_SCRIPT}" -c "$config_path"
-    echo "[Docker] Completed build for '${IMG_NAME}'"
 
     unset CAMERA_TYPE IMG_NAME IMG_NAME_SUFFIX STAGE_LIST TARGET_HOSTNAME WORK_DIR
     printf '\n'
