@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import re
+import os
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -15,6 +16,12 @@ from typing import Any, Dict, Iterable, List, Optional
 
 DEPLOY_EXTENSIONS: tuple[str, ...] = (".img", ".img.xz", ".img.gz", ".img.zip", ".zip")
 BUILD_ID_PATTERN = re.compile(r"^(?:image_)?(?P<date>\d{4}-\d{2}-\d{2})-(?P<name>.+)$")
+SEMVER_IN_NAME = re.compile(r"_v(?P<version>\d+\.\d+\.\d+(?:[-+][\w.]+)?)", re.IGNORECASE)
+DEFAULT_GITHUB_REPOSITORY = os.environ.get("GITHUB_REPOSITORY", "OpenScan-org/OpenScan3")
+DEFAULT_RELEASE_BASE_URL = os.environ.get(
+    "OPENSCAN_RELEASE_BASE_URL",
+    f"https://github.com/{DEFAULT_GITHUB_REPOSITORY}/releases/download",
+)
 
 
 @dataclass
@@ -26,6 +33,8 @@ class Variant:
     capabilities: List[str]
     init_format: str
     icon: Optional[str]
+    website: Optional[str]
+    architecture: Optional[str]
 
     def matches(self, build_id: str) -> bool:
         suffix_pattern = rf"_{re.escape(self.suffix)}(?:-[\w.-]+)*$"
@@ -51,13 +60,24 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--url-prefix",
-        default="",
-        help="Optional HTTP(S) base URL where artifacts will be hosted. The filename is appended to this prefix.",
+        default=None,
+        help=(
+            "Optional HTTP(S) base URL where artifacts will be hosted. "
+            "Defaults to https://github.com/<repo>/releases/download/<tag> if build names expose a semver tag."
+        ),
     )
     parser.add_argument(
         "--release-date",
         default=None,
         help="ISO date (YYYY-MM-DD) to force as release_date for every entry.",
+    )
+    parser.add_argument(
+        "--sublist-output",
+        default="imager/os-sublist-openscan.json",
+        help=(
+            "Path for emitting an os-sublist JSON matching Raspberry Pi's example schema. "
+            "Pass an empty string to disable."
+        ),
     )
     return parser.parse_args()
 
@@ -73,6 +93,8 @@ def load_variants(path: Path) -> tuple[Dict[str, Any], Optional[Dict[str, Any]],
             capabilities=entry.get("capabilities", []),
             init_format=entry.get("init_format", "cloudinit-rpi"),
             icon=entry.get("icon"),
+            website=entry.get("website"),
+            architecture=entry.get("architecture"),
         )
         for entry in data["variants"]
     ]
@@ -117,6 +139,7 @@ def build_os_entry(
     url_prefix: str,
 ) -> Dict[str, Any]:
     download_url = f"{url_prefix.rstrip('/')}/{artifact.name}" if url_prefix else artifact.name
+    extract_size, extract_sha256 = resolve_extract_metadata(artifact)
     entry: Dict[str, Any] = {
         "name": variant.name,
         "description": variant.description,
@@ -130,6 +153,14 @@ def build_os_entry(
     }
     if variant.icon:
         entry["icon"] = variant.icon
+    if variant.website:
+        entry["website"] = variant.website
+    if variant.architecture:
+        entry["architecture"] = variant.architecture
+    if extract_size is not None:
+        entry["extract_size"] = extract_size
+    if extract_sha256 is not None:
+        entry["extract_sha256"] = extract_sha256
     return entry
 
 
@@ -172,22 +203,87 @@ def assemble_os_list(
     return os_entries
 
 
+def locate_uncompressed_image(artifact: Path) -> Optional[Path]:
+    if artifact.suffix == ".img":
+        return artifact
+    base = canonical_build_id(artifact)
+    candidate = artifact.with_name(f"{base}.img")
+    if candidate.exists():
+        return candidate
+    return None
+
+
+def resolve_extract_metadata(artifact: Path) -> tuple[Optional[int], Optional[str]]:
+    uncompressed = locate_uncompressed_image(artifact)
+    if not uncompressed:
+        return None, None
+    return uncompressed.stat().st_size, sha256sum(uncompressed)
+
+
+def infer_release_tag(artifacts: List[Path]) -> Optional[str]:
+    for path in artifacts:
+        match = SEMVER_IN_NAME.search(path.name)
+        if match:
+            version = match.group("version")
+            return f"v{version.lstrip('vV')}"
+    return None
+
+
+def derive_url_prefix(explicit_prefix: Optional[str], artifacts: List[Path]) -> str:
+    if explicit_prefix is not None:
+        return explicit_prefix
+    release_tag = infer_release_tag(artifacts)
+    if release_tag:
+        return f"{DEFAULT_RELEASE_BASE_URL.rstrip('/')}/{release_tag}"
+    return ""
+
+
+SUBLIST_FIELDS: tuple[str, ...] = (
+    "name",
+    "description",
+    "url",
+    "icon",
+    "website",
+    "release_date",
+    "extract_size",
+    "extract_sha256",
+    "image_download_size",
+    "image_download_sha256",
+    "devices",
+    "init_format",
+    "architecture",
+)
+
+
+def build_sublist_entries(os_entries: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    sub_entries: List[Dict[str, Any]] = []
+    for entry in os_entries:
+        sub_entry: Dict[str, Any] = {}
+        for field in SUBLIST_FIELDS:
+            if field in entry:
+                sub_entry[field] = entry[field]
+        sub_entries.append(sub_entry)
+    return sub_entries
+
+
 def main() -> None:
     args = parse_args()
     variants_path = Path(args.variants)
     deploy_dir = Path(args.deploy_dir)
     output_path = Path(args.output)
     release_date_override: Optional[str] = args.release_date
+    sublist_output_path = Path(args.sublist_output) if args.sublist_output else None
 
     imager_meta, category_meta, variants = load_variants(variants_path)
     artifacts = list(iter_artifacts(deploy_dir))
+    url_prefix = derive_url_prefix(args.url_prefix, artifacts)
 
     os_entries: List[Dict[str, Any]] = []
     for variant in variants:
         artifact, release_date = select_latest_artifact(variant, artifacts)
         if release_date_override:
             release_date = release_date_override
-        os_entry = build_os_entry(variant, artifact, release_date, args.url_prefix)
+        os_entry = build_os_entry(variant, artifact, release_date, url_prefix)
         os_entries.append(os_entry)
 
     repo = {
@@ -198,6 +294,12 @@ def main() -> None:
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(repo, indent=2) + "\n", encoding="utf-8")
     print(f"Wrote Raspberry Pi Imager repository JSON to {output_path}")
+
+    if sublist_output_path:
+        sublist_output_path.parent.mkdir(parents=True, exist_ok=True)
+        payload = {"os_list": build_sublist_entries(os_entries)}
+        sublist_output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        print(f"Wrote Raspberry Pi Imager os-sublist JSON to {sublist_output_path}")
 
 
 if __name__ == "__main__":
