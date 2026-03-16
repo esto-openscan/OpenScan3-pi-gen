@@ -31,6 +31,7 @@ install -m 755 -D files/usr/local/bin/openscan3 "${ROOTFS_DIR}/usr/local/bin/ope
 install -m 644 -D files/etc/systemd/system/openscan3.service "${ROOTFS_DIR}/etc/systemd/system/openscan3.service"
 install -m 755 -D files/usr/local/sbin/openscan3-update "${ROOTFS_DIR}/usr/local/sbin/openscan3-update"
 install -m 644 -D files/etc/avahi/services/openscan3.service "${ROOTFS_DIR}/etc/avahi/services/openscan3.service"
+install -m 644 -D files/etc/polkit-1/rules.d/49-openscan.rules "${ROOTFS_DIR}/etc/polkit-1/rules.d/49-openscan.rules"
 
 rm -rf "${ROOTFS_DIR}/opt/openscan3" "${ROOTFS_DIR}/opt/openscan3-src"
 
@@ -51,7 +52,7 @@ set -e
 
 adduser --system --group --home /opt/openscan3 openscan
 # Add openscan user to relevant hardware groups
-for grp in camera video render plugdev input i2c spi gpio netdev; do
+for grp in camera video render plugdev input i2c spi gpio netdev systemd-journal; do
   groupadd -f "$grp"
   adduser openscan "$grp"
 done
@@ -110,17 +111,16 @@ chmod +x /usr/local/bin/openscan3
 systemctl enable openscan3
 systemctl enable avahi-daemon
 
-# Allow 'openscan' to control the OpenScan3 service and read logs without a password
+# Allow 'openscan' to control the OpenScan3 service and power-manage without a password
+# NOTE: journalctl access is granted via systemd-journal group membership.
+# NOTE: NetworkManager access is granted via polkit (49-openscan.rules).
+# NOTE: Once the firmware drops 'sudo' from reboot/shutdown calls,
+#       the shutdown/reboot lines below can be removed (polkit handles them).
 cat >/etc/sudoers.d/openscan-service <<'SUDOERS'
 openscan ALL=(root) NOPASSWD:/usr/bin/systemctl start openscan3
 openscan ALL=(root) NOPASSWD:/usr/bin/systemctl stop openscan3
 openscan ALL=(root) NOPASSWD:/usr/bin/systemctl restart openscan3
 openscan ALL=(root) NOPASSWD:/usr/bin/systemctl status openscan3
-openscan ALL=(root) NOPASSWD:/usr/bin/journalctl -u openscan3
-openscan ALL=(root) NOPASSWD:/usr/bin/journalctl -u openscan3 -n *
-openscan ALL=(root) NOPASSWD:/usr/bin/journalctl -u openscan3 -f
-openscan ALL=(root) NOPASSWD:/usr/bin/journalctl -u openscan3 --no-pager
-openscan ALL=(root) NOPASSWD:/usr/bin/journalctl -u openscan3 --no-pager -n *
 openscan ALL=(root) NOPASSWD:/usr/sbin/shutdown now
 openscan ALL=(root) NOPASSWD:/usr/sbin/reboot
 SUDOERS
@@ -140,18 +140,5 @@ www-data ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --branch * --keep-
 SUDOERS
 chmod 0440 /etc/sudoers.d/openscan-updater
 
-# Allow 'openscan' to manage WiFi connections via nmcli
-cat >/etc/sudoers.d/openscan-network <<'SUDOERS'
-openscan ALL=(root) NOPASSWD:/usr/bin/nmcli device wifi list
-openscan ALL=(root) NOPASSWD:/usr/bin/nmcli device wifi list *
-openscan ALL=(root) NOPASSWD:/usr/bin/nmcli device wifi rescan
-openscan ALL=(root) NOPASSWD:/usr/bin/nmcli device wifi connect *
-openscan ALL=(root) NOPASSWD:/usr/bin/nmcli connection show
-openscan ALL=(root) NOPASSWD:/usr/bin/nmcli connection show *
-openscan ALL=(root) NOPASSWD:/usr/bin/nmcli connection delete *
-openscan ALL=(root) NOPASSWD:/usr/bin/nmcli connection up *
-openscan ALL=(root) NOPASSWD:/usr/bin/nmcli connection down *
-openscan ALL=(root) NOPASSWD:/usr/bin/nmcli general status
-SUDOERS
-chmod 0440 /etc/sudoers.d/openscan-network
+rm -f /etc/sudoers.d/openscan-network
 EOF
