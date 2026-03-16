@@ -47,8 +47,9 @@ source "${CONFIG_HELPER}"
 HOST_WORK_DIR="${HOST_WORK_DIR:-${PI_GEN_DIR}/work}"
 HOST_DEPLOY_DIR="${HOST_DEPLOY_DIR:-${PI_GEN_DIR}/deploy}"
 HOST_APT_CACHE_DIR="${HOST_APT_CACHE_DIR:-${PWD}/.cache/pi-gen/apt}"
+FINAL_DEPLOY_DIR="${FINAL_DEPLOY_DIR:-deploy}"
 
-mkdir -p "${HOST_WORK_DIR}" "${HOST_DEPLOY_DIR}" "${HOST_APT_CACHE_DIR}"
+mkdir -p "${HOST_WORK_DIR}" "${HOST_DEPLOY_DIR}" "${HOST_APT_CACHE_DIR}" "${FINAL_DEPLOY_DIR}"
 
 HOST_WORK_DIR=$(realpath "${HOST_WORK_DIR}")
 HOST_DEPLOY_DIR=$(realpath "${HOST_DEPLOY_DIR}")
@@ -200,6 +201,74 @@ run_docker_build_variant() {
     echo "[Docker] Completed build for '${img_name}'${label_suffix}"
 }
 
+copy_sanitized_artifacts() {
+    local base_name="$1"
+    local src_dir="${HOST_DEPLOY_DIR}"
+    local dst_dir="${FINAL_DEPLOY_DIR}"
+    local matched=0
+    local file ext dest
+
+    mkdir -p "${dst_dir}"
+
+    shopt -s nullglob
+    for file in "${src_dir}"/*-"${base_name}"*; do
+        case "${file}" in
+            *.img.xz)
+                ext=".img.xz"
+                ;;
+            *.img.gz)
+                ext=".img.gz"
+                ;;
+            *.img.zip)
+                ext=".img.zip"
+                ;;
+            *.img)
+                ext=".img"
+                ;;
+            *.zip)
+                ext=".zip"
+                ;;
+            *.info)
+                ext=".info"
+                ;;
+            *.bmap)
+                ext=".bmap"
+                ;;
+            *.bmap.gz)
+                ext=".bmap.gz"
+                ;;
+            *.sbom)
+                ext=".sbom"
+                ;;
+            *.sbom.xz)
+                ext=".sbom.xz"
+                ;;
+            *.spdx.json)
+                ext=".spdx.json"
+                ;;
+            *.spdx.json.xz)
+                ext=".spdx.json.xz"
+                ;;
+            *.sha256)
+                ext=".sha256"
+                ;;
+            *)
+                continue
+                ;;
+        esac
+
+        dest="${dst_dir}/${base_name}${ext}"
+        cp -f "${file}" "${dest}"
+        echo "Exported $(basename "${file}") -> ${dest}"
+        matched=1
+    done
+    shopt -u nullglob
+
+    if [ "${matched}" -eq 0 ]; then
+        echo "Warning: No artifacts matching ${base_name} found in ${src_dir}" >&2
+    fi
+}
+
 if ! command -v qemu-aarch64 >/dev/null 2>&1 && command -v qemu-aarch64-static >/dev/null 2>&1; then
     qemu_shim_dir=$(mktemp -d)
     ln -s "$(which qemu-aarch64-static)" "${qemu_shim_dir}/qemu-aarch64"
@@ -259,6 +328,8 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
             "${TARGET_HOSTNAME}" \
             "$cam_config" \
             "${build_labels[$idx]}"
+
+        copy_sanitized_artifacts "${build_img_names[$idx]}"
     done
 
     unset CAMERA_TYPE IMG_NAME IMG_NAME_SUFFIX STAGE_LIST TARGET_HOSTNAME WORK_DIR
