@@ -92,7 +92,7 @@ runuser -u openscan -- python3 -m venv --system-site-packages "${DST_DIR}/venv"
 log "Installing editable package from ${DST_DIR}"
 runuser -u openscan -- bash -lc "set -e; source '${DST_DIR}/venv/bin/activate'; pip install --upgrade pip"
 runuser -u openscan -- bash -lc "set -e; source '${DST_DIR}/venv/bin/activate'; pip install --extra-index-url '${PIWHEELS_INDEX_URL}' --only-binary=:all: 'gphoto2==${GPHOTO2_VERSION}'"
-runuser -u openscan -- bash -lc "set -e; source '${DST_DIR}/venv/bin/activate'; pip install -e '${DST_DIR}'"
+runuser -u openscan -- bash -lc "set -e; source '${DST_DIR}/venv/bin/activate'; pip install --extra-index-url '${PIWHEELS_INDEX_URL}' --prefer-binary -e '${DST_DIR}'"
 
 if [[ ${KEEP_SETTINGS} -eq 0 ]]; then
   log "Resetting settings in ${SETTINGS_DIR} from ${SRC_DIR}/settings (if present)..."
