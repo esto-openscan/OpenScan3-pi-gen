@@ -144,6 +144,24 @@ sudo systemctl restart openscan3
 
 - **Locate the image**: Find the generated image in `pi-gen/deploy/` (`.img`, `.img.xz`, or `.zip`).
 
+### Optional: generate a Raspberry Pi Imager manifest (online + local)
+
+We ship `scripts/generate-imager-json.py` to emit both the hosted repository metadata (`imager/repo.json`) _and_ a manifest that points at your locally downloaded artifacts so the customization wizard stays enabled even when you select "Use custom".
+
+1. Build or download your OpenScan images so they exist in `pi-gen/deploy/`.
+2. Generate the manifests:
+
+   ```bash
+   ./scripts/generate-imager-json.py \
+     --deploy-dir pi-gen/deploy \
+     --local-manifest
+   ```
+
+   - `imager/repo.json`: reference file for publishing/hosting (HTTP URLs).
+   - `imager/os_list_local.rpi-imager-manifest`: uses `file://` paths that Raspberry Pi Imager can open directly.
+
+3. Launch Raspberry Pi Imager and either double-click the `.rpi-imager-manifest` file or go to **App Options → Content Repository → Use custom file** and select it. The **OS** list now shows your OpenScan builds with all customization sliders, including USB Gadget mode.
+
 ### Recommended: Raspberry Pi Imager
 
 > **Note:** Advanced customization (hostname, user, Wi‑Fi, etc.) is confirmed to work with Raspberry Pi Imager 1.8.5. Later releases have shown inconsistent behavior with these settings, so stick to 1.8.5 if you rely on the built-in customizer.

@@ -8,6 +8,7 @@ import hashlib
 import json
 import re
 import os
+from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -95,6 +96,24 @@ def parse_args() -> argparse.Namespace:
             "Path for emitting an os-sublist JSON matching Raspberry Pi's example schema. "
             "Pass an empty string to disable."
         ),
+    )
+    parser.add_argument(
+        "--skip-missing",
+        action="store_true",
+        help="Skip variants that have no matching artifact instead of stopping with an error.",
+    )
+    parser.add_argument(
+        "--local-manifest",
+        action="store_true",
+        help=(
+            "Emit an additional os_list_local.rpi-imager-manifest referencing file:// URIs "
+            "for the located artifacts. Imager can load this to enable customization for local images."
+        ),
+    )
+    parser.add_argument(
+        "--local-output",
+        default="imager/os_list_local.rpi-imager-manifest",
+        help="Path for the optional local manifest (default: %(default)s)",
     )
     return parser.parse_args()
 
@@ -296,22 +315,38 @@ def main() -> None:
     url_prefix = derive_url_prefix(args.url_prefix, artifacts)
 
     os_entries: List[Dict[str, Any]] = []
+    artifact_paths: List[Path] = []
+    skip_missing = args.skip_missing or args.local_manifest
     for variant in variants:
-        artifact, release_date = select_latest_artifact(variant, artifacts)
+        try:
+            artifact, release_date = select_latest_artifact(variant, artifacts)
+        except FileNotFoundError:
+            if skip_missing:
+                continue
+            raise
         if release_date_override:
             release_date = release_date_override
         os_entry = build_os_entry(variant, artifact, release_date, url_prefix)
         os_entries.append(os_entry)
+        artifact_paths.append(artifact)
 
         develop_variant = variant.develop_variant()
         try:
             dev_artifact, dev_release_date = select_latest_artifact(develop_variant, artifacts)
         except FileNotFoundError:
-            continue
+            if skip_missing:
+                continue
+            raise
         if release_date_override:
             dev_release_date = release_date_override
         dev_entry = build_os_entry(develop_variant, dev_artifact, dev_release_date, url_prefix)
         os_entries.append(dev_entry)
+        artifact_paths.append(dev_artifact)
+
+    if not os_entries:
+        raise FileNotFoundError(
+            "No matching artifacts found. Provide build outputs in --deploy-dir or disable --skip-missing."
+        )
 
     repo = {
         "imager": imager_meta,
@@ -327,6 +362,21 @@ def main() -> None:
         payload = {"os_list": build_sublist_entries(os_entries)}
         sublist_output_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
         print(f"Wrote Raspberry Pi Imager os-sublist JSON to {sublist_output_path}")
+
+    if args.local_manifest:
+        local_entries: List[Dict[str, Any]] = []
+        for entry, artifact in zip(os_entries, artifact_paths):
+            local_entry = deepcopy(entry)
+            local_entry["url"] = artifact.resolve().as_uri()
+            local_entries.append(local_entry)
+        local_repo = {
+            "imager": imager_meta,
+            "os_list": assemble_os_list(category_meta, local_entries),
+        }
+        local_output_path = Path(args.local_output)
+        local_output_path.parent.mkdir(parents=True, exist_ok=True)
+        local_output_path.write_text(json.dumps(local_repo, indent=2) + "\n", encoding="utf-8")
+        print(f"Wrote Raspberry Pi Imager local manifest to {local_output_path}")
 
 
 if __name__ == "__main__":
