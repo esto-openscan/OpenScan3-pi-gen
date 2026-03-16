@@ -7,8 +7,8 @@ production images.
 
 > Security note: develop images expose writable Samba shares, automatic task
 > discovery settings which means arbitrary code execution, and other debug
-> conveniences that are not suitable for production. Use them only inside
-> trusted, isolated networks.
+> conveniences like enabled ssh with default password. This is not suitable for production. 
+> Use them only inside trusted, isolated networks.
 
 ## Stage overview
 
@@ -16,6 +16,7 @@ production images.
 |-------|---------|
 | `stage6-develop/00-samba-dev` | Adds extra Samba exports for development assets and data. |
 | `stage6-develop/01-openscan-service` | Injects dev-specific environment variables into the `openscan3` systemd unit via a drop-in. |
+| `stage6-develop/03-dev-access` | Enables SSH and assigns the `openscan` user the default password `openscan`. |
 
 ## Samba additions
 
@@ -69,6 +70,9 @@ immediately without rebooting or restarting the service.
   `stage6-develop` in their `STAGE_LIST`.
 - Production images continue to use the base paths (`/var/openscan3/projects`
   share only) and default task discovery settings.
+- Develop images ship with SSH enabled and the `openscan` account set to the
+  default password `openscan`. Change it immediately if the device leaves a
+  trusted network.
 
 ## Related files
 
