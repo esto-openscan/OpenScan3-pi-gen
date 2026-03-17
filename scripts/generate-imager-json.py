@@ -23,6 +23,10 @@ DEFAULT_RELEASE_BASE_URL = os.environ.get(
     "OPENSCAN_RELEASE_BASE_URL",
     f"https://github.com/{DEFAULT_GITHUB_REPOSITORY}/releases/download",
 )
+DEFAULT_ICON_URL = (
+    f"https://raw.githubusercontent.com/{DEFAULT_GITHUB_REPOSITORY}/main/dist/assets/openscan_mini_icon.png"
+)
+DEFAULT_WEBSITE = "https://openscan.eu"
 
 
 @dataclass
@@ -41,22 +45,6 @@ class Variant:
     def matches(self, build_id: str) -> bool:
         suffix_pattern = rf"_{re.escape(self.suffix)}(?:-[\w.-]+)*$"
         return re.search(suffix_pattern, build_id) is not None
-
-    def develop_variant(self) -> "Variant":
-        if self.is_develop:
-            raise ValueError("Cannot derive develop variant from an existing develop variant")
-        return Variant(
-            suffix=f"{self.suffix}_DEVELOP",
-            name=f"{self.name} (Develop)",
-            description=f"{self.description} (stage6 developer services enabled)",
-            devices=self.devices,
-            capabilities=self.capabilities,
-            init_format=self.init_format,
-            icon=self.icon,
-            website=self.website,
-            architecture=self.architecture,
-            is_develop=True,
-        )
 
 
 def parse_args() -> argparse.Namespace:
@@ -131,6 +119,7 @@ def load_variants(path: Path) -> tuple[Dict[str, Any], Optional[Dict[str, Any]],
             icon=entry.get("icon"),
             website=entry.get("website"),
             architecture=entry.get("architecture"),
+            is_develop=entry.get("is_develop", False),
         )
         for entry in data["variants"]
     ]
@@ -187,10 +176,8 @@ def build_os_entry(
         "image_download_size": artifact.stat().st_size,
         "image_download_sha256": sha256sum(artifact),
     }
-    if variant.icon:
-        entry["icon"] = variant.icon
-    if variant.website:
-        entry["website"] = variant.website
+    entry["icon"] = variant.icon or DEFAULT_ICON_URL
+    entry["website"] = variant.website or DEFAULT_WEBSITE
     if variant.architecture:
         entry["architecture"] = variant.architecture
     if extract_size is not None:
@@ -208,6 +195,11 @@ def infer_release_date(build_id: str, artifact: Path) -> str:
         return timestamp.date().isoformat()
 
 
+def _is_raw_pigen_name(path: Path) -> bool:
+    """Return True for raw pi-gen output names (image_DATE-…-lite.*)."""
+    return path.name.startswith("image_") and "-lite" in path.stem
+
+
 def select_latest_artifact(variant: Variant, artifacts: List[Path]) -> tuple[Path, str]:
     matching: list[tuple[str, Path]] = []
     for path in artifacts:
@@ -217,7 +209,9 @@ def select_latest_artifact(variant: Variant, artifacts: List[Path]) -> tuple[Pat
             matching.append((release_date, path))
     if not matching:
         raise FileNotFoundError(f"No artifact found for variant '{variant.suffix}'")
-    matching.sort(key=lambda item: item[0])
+    # Sort by (date, preference) — prefer renamed release artifacts over raw
+    # pi-gen outputs (image_DATE-…-lite) when both exist with the same date.
+    matching.sort(key=lambda item: (item[0], 0 if _is_raw_pigen_name(item[1]) else 1))
     release_date, artifact = matching[-1]
     return artifact, release_date
 
@@ -329,19 +323,6 @@ def main() -> None:
         os_entry = build_os_entry(variant, artifact, release_date, url_prefix)
         os_entries.append(os_entry)
         artifact_paths.append(artifact)
-
-        develop_variant = variant.develop_variant()
-        try:
-            dev_artifact, dev_release_date = select_latest_artifact(develop_variant, artifacts)
-        except FileNotFoundError:
-            if skip_missing:
-                continue
-            raise
-        if release_date_override:
-            dev_release_date = release_date_override
-        dev_entry = build_os_entry(develop_variant, dev_artifact, dev_release_date, url_prefix)
-        os_entries.append(dev_entry)
-        artifact_paths.append(dev_artifact)
 
     if not os_entries:
         raise FileNotFoundError(
