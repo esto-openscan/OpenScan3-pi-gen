@@ -9,4 +9,6 @@ set -e
 
 echo 'openscan:openscan' | chpasswd
 systemctl enable ssh
+chsh -s /bin/bash openscan
+adduser openscan sudo
 EOF
