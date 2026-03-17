@@ -34,7 +34,7 @@
   },
   "category": {
     "name": "OpenScan3",
-    "description": "Firmware images for open 3d-scanner.",
+    "description": "Firmware images for open 3d scanners.",
     "icon": null
   },
   "variants": [
