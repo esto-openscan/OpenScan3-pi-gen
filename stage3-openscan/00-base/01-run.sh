@@ -111,20 +111,8 @@ chmod +x /usr/local/bin/openscan3
 systemctl enable openscan3
 systemctl enable avahi-daemon
 
-# Allow 'openscan' to control the OpenScan3 service and power-manage without a password
-# NOTE: journalctl access is granted via systemd-journal group membership.
-# NOTE: NetworkManager access is granted via polkit (49-openscan.rules).
-# NOTE: Once the firmware drops 'sudo' from reboot/shutdown calls,
-#       the shutdown/reboot lines below can be removed (polkit handles them).
-cat >/etc/sudoers.d/openscan-service <<'SUDOERS'
-openscan ALL=(root) NOPASSWD:/usr/bin/systemctl start openscan3
-openscan ALL=(root) NOPASSWD:/usr/bin/systemctl stop openscan3
-openscan ALL=(root) NOPASSWD:/usr/bin/systemctl restart openscan3
-openscan ALL=(root) NOPASSWD:/usr/bin/systemctl status openscan3
-openscan ALL=(root) NOPASSWD:/usr/sbin/shutdown now
-openscan ALL=(root) NOPASSWD:/usr/sbin/reboot
-SUDOERS
-chmod 0440 /etc/sudoers.d/openscan-service
+# Clean up legacy sudoers files (permissions now handled via polkit / group membership)
+rm -f /etc/sudoers.d/openscan-service
 rm -f /etc/sudoers.d/openscan-nodered
 
 # Allow running the updater from CLI (openscan) and via web (www-data)
