@@ -4,10 +4,13 @@
 from __future__ import annotations
 
 import argparse
+import gzip
 import hashlib
 import json
-import re
+import lzma
 import os
+import re
+import zipfile
 from copy import deepcopy
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -227,8 +230,7 @@ def assemble_os_list(
         }
         if description := category.get("description"):
             category_entry["description"] = description
-        if icon := category.get("icon"):
-            category_entry["icon"] = icon
+        category_entry["icon"] = category.get("icon") or DEFAULT_ICON_URL
         return [category_entry]
     return os_entries
 
@@ -245,9 +247,51 @@ def locate_uncompressed_image(artifact: Path) -> Optional[Path]:
 
 def resolve_extract_metadata(artifact: Path) -> tuple[Optional[int], Optional[str]]:
     uncompressed = locate_uncompressed_image(artifact)
-    if not uncompressed:
-        return None, None
-    return uncompressed.stat().st_size, sha256sum(uncompressed)
+    if uncompressed:
+        return uncompressed.stat().st_size, sha256sum(uncompressed)
+    if artifact.suffix == ".zip":
+        return _extract_metadata_from_zip(artifact)
+    if artifact.name.endswith(".img.xz"):
+        return _extract_metadata_from_xz(artifact)
+    if artifact.name.endswith(".img.gz"):
+        return _extract_metadata_from_gz(artifact)
+    return None, None
+
+
+def _extract_metadata_from_zip(artifact: Path) -> tuple[Optional[int], Optional[str]]:
+    """Read extract_size and extract_sha256 directly from a ZIP archive."""
+    with zipfile.ZipFile(artifact, "r") as zf:
+        img_entries = [e for e in zf.infolist() if e.filename.endswith(".img")]
+        if not img_entries:
+            return None, None
+        img_entry = max(img_entries, key=lambda e: e.file_size)
+        digest = hashlib.sha256()
+        with zf.open(img_entry) as f:
+            for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                digest.update(chunk)
+        return img_entry.file_size, digest.hexdigest()
+
+
+def _extract_metadata_from_xz(artifact: Path) -> tuple[Optional[int], Optional[str]]:
+    """Decompress .img.xz to compute extract_size and extract_sha256."""
+    digest = hashlib.sha256()
+    size = 0
+    with lzma.open(artifact, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+            size += len(chunk)
+    return size, digest.hexdigest()
+
+
+def _extract_metadata_from_gz(artifact: Path) -> tuple[Optional[int], Optional[str]]:
+    """Decompress .img.gz to compute extract_size and extract_sha256."""
+    digest = hashlib.sha256()
+    size = 0
+    with gzip.open(artifact, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+            size += len(chunk)
+    return size, digest.hexdigest()
 
 
 def infer_release_tag(artifacts: List[Path]) -> Optional[str]:

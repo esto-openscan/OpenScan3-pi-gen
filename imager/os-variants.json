@@ -35,7 +35,7 @@
   "category": {
     "name": "OpenScan3",
     "description": "Firmware images for open 3d scanners.",
-    "icon": null
+    "icon": "https://raw.githubusercontent.com/OpenScan-org/OpenScan3/main/dist/assets/openscan_mini_icon.png"
   },
   "variants": [
     {
