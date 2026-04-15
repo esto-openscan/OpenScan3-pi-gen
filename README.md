@@ -24,14 +24,14 @@ For instructions on using the generated images, see the [image documentation](DO
 
 ```bash
 # clone with submodules
-git clone --recurse-submodules https://github.com/esto-openscan/OpenScan3-pi-gen.git
+git clone --recurse-submodules https://github.com/OpenScan-org/OpenScan3-pi-gen.git
 cd OpenScan3-pi-gen
 
 # if already cloned without submodules
 git submodule update --init --recursive
 
 # if the OpenScan3 submodule is not yet added in your clone, add it once
-git submodule add --name OpenScan3 https://github.com/esto-openscan/OpenScan3.git OpenScan3
+git submodule add --name OpenScan3 https://github.com/OpenScan-org/OpenScan3.git OpenScan3
 
 # prepare local sources (sync submodules + fetch SPA web UI bundle)
 ./scripts/prepare-build.sh

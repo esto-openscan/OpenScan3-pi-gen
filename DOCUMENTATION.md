@@ -7,10 +7,10 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 - Flash the image using Raspberry Pi Imager and, in Advanced options, set the hostname, create a user (do NOT name it `openscan`), and configure Wi‑Fi.
 - Optionally enable SSH in Raspberry Pi Imager for headless access.
 - Boot the Pi, connect it to your network (Ethernet recommended for first boot).
-- Open a browser to `http://openscan3-alpha/` or the Pi’s IP.
+- Open a browser to `http://openscan/` or the Pi’s IP.
 - You’ll land on the OpenScan3-Client dashboard (served at `/`).
 - API is available on the device at `http://<pi>/api/` (proxied by nginx) and directly at `http://<pi>:8000/latest`.
-- API documentation is available at `http://<pi>:8000/latest/docs`.
+- API documentation is available at `http://<pi>:api/latest/docs`.
 ---
 
 ## What’s in the image
@@ -49,7 +49,7 @@ Select the right image for your camera. Differences are applied in stage 5.
   - Installs Arducam PiVariety `libcamera` packages.
   - Appends `dtoverlay=imx519` to `/boot/firmware/config.txt` (see `stage5-imx519/01-camera-imx519/01-run.sh`).
 
-- **Arducam 64MP (HawkEye) (experimental)** (`stage5-arducam-64mp`)
+- **Arducam 64MP (HawkEye) ** (`stage5-arducam-64mp`)
   - Installs Arducam PiVariety `libcamera` packages.
   - Appends to `/boot/firmware/config.txt`:
     - `dtoverlay=arducam-64mp`
@@ -60,12 +60,12 @@ Your build variant is chosen via the `.env` config used at build time (see `came
 
 ## First boot and network access
 
-- **User account (important)**: Use the user you created in Raspberry Pi Imager. Do not create a user named `openscan` — this name is reserved for the internal service account created by the image.
+- **User account (important)**: Use the user you created in Raspberry Pi Imager. Do not create a user named `openscan` — this name is reserved for the internal service account created by the image. If you haven't created a user, you won't be able to SSH into the Pi.
 - **Network**:
-  - If Wi‑Fi was configured in Raspberry Pi Imager, the Pi will join that network on first boot.
+  - If Wi‑Fi was configured in Raspberry Pi Imager, the Pi will join that network on first boot. If no network is configured, the device will automatically try to connect to a Wi-Fi from a qr code you can generate with your smartphone.
 - **Hostname**: Use the hostname you set in Raspberry Pi Imager. If not set, it defaults to `openscan3-alpha`.
 - **Discovery**:
-  - Default hostname is `http://openscan3-alpha/` and via mDNS it resolves as `http://openscan3-alpha.local/`.
+  - Default hostname is `http://openscan/` and via mDNS it resolves as `http://openscan.local/`.
   - Avahi publishes `_http._tcp` and `_smb._tcp` DNS‑SD records automatically, so Windows/macOS/Linux network browsers show an “OpenScan3” web endpoint and Samba share without extra setup. Changing the hostname (e.g., in Raspberry Pi Imager) propagates to these announcements on next boot.
 
 ## Accessing the web UI
@@ -76,8 +76,8 @@ Your build variant is chosen via the `.env` config used at build time (see `came
 - OpenAPI JSON: `http://<pi>/api/latest/openapi.json`
 - Typical endpoints consumed by the SPA: `/latest/device/info`, `/latest/projects`, and other REST/WS routes exposed by the firmware.
 
-## Updater (experimental)
-- Admin page (experimental): `http://<pi>/admin/`
+## Updater
+- Admin page: `http://<pi>/admin/`
   - Minimal PHP page to:
     - Download OpenScan3 device settings as tar.gz (`/etc/openscan3`).
     - Download the packaged OpenScan3-Client bundle (`/opt/openscan3-client`).
@@ -127,7 +127,7 @@ sudo rsync -av --delete --exclude '.git' /opt/openscan3-src/ /opt/openscan3/
 sudo systemctl restart openscan3
 ```
 
-### Updater (highly experimental)
+### Updater
 
 - CLI:
   ```bash
@@ -162,23 +162,19 @@ We ship `scripts/generate-imager-json.py` to emit both the hosted repository met
 
 3. Launch Raspberry Pi Imager and either double-click the `.rpi-imager-manifest` file or go to **App Options → Content Repository → Use custom file** and select it. The **OS** list now shows your OpenScan builds with all customization sliders, including USB Gadget mode.
 
-### Recommended: Raspberry Pi Imager
+### Recommended: Raspberry Pi Imager with custom repository
 
-> **Note:** Advanced customization (hostname, user, Wi‑Fi, etc.) is confirmed to work with Raspberry Pi Imager 1.8.5. Later releases have shown inconsistent behavior with these settings, so stick to 1.8.5 if you rely on the built-in customizer.
+> **Note:** Advanced customization (hostname, user, Wi‑Fi, etc.) is confirmed to work with Raspberry Pi Imager > 2.0.
+> Older versions may not apply the customizations properly.
 
-1. Open Raspberry Pi Imager (v1.7+ recommended).
-2. OS → Use custom → select your built image from `pi-gen/deploy/`.
-3. Storage → select your microSD card.
-4. Click the gear icon (Advanced options) and set:
-   - Hostname (e.g., `openscan-beta.local`).
-   - Username and password for your primary user. Do NOT use `openscan`.
-   - Wi‑Fi SSID, password, and country.
-   - Optional: enable SSH and set locale/timezone/keyboard.
-5. Write the image. Eject the card and insert it into the Pi.
+1. Open Raspberry Pi Imager (>=2.0.6).
+2. Click **ADD OPTIONS** -> Click **EDIT** Content Repository -> Use custom URL and paste `https://openscan.eu/rpi-repo.json` -> Click **Apply and restart**
+3. Choose your raspberry pi device
+4. Select the image according to your camera variant. **IMPORTANT**: Ensure the image matches your camera model. Choosing the wrong image may result in permanent hardware damage. 
+5. Select the storage device to write the image to.
+6. Modify configuration options if needed (hostname, user, Wi‑Fi, etc.) via the Raspberry Pi Imager interface.
+7. Write the image. Eject the card and insert it into the Pi.
 
-### Alternative: Other flashers (balenaEtcher)
-
-- Flash the image normally, then configure hostname/user/Wi‑Fi after first boot via HDMI/keyboard and `raspi-config` (or with cloud-init files on the boot partition, see `pi-gen/README.md`).
 
 ## Troubleshooting
 
@@ -189,7 +185,7 @@ We ship `scripts/generate-imager-json.py` to emit both the hosted repository met
 - **UI shows setup screen / device not initialized**
   - Check OpenScan3: `systemctl status openscan3` and `journalctl -u openscan3 -e -f`.
 
-- **Camera not detected / errors with libcamera**
+- **Camera not detected / errors with libcamera** 
   - Verify `/boot/firmware/config.txt` contains the correct `dtoverlay` for your variant.
   - For 64MP builds ensure the CMA overlay line exists: `dtoverlay=vc4-kms-v3d,cma-512`.
   - Power-cycle after changing overlays.
