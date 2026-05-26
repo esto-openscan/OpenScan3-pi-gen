@@ -43,7 +43,7 @@
       "camera_type": "imx519",
       "name": "OpenScan3 (Arducam IMX519 16MP)",
       "description": "Optimised for the Arducam IMX519 camera with drivers and tuning blobs pre-installed.",
-      "devices": ["pi5", "pi4", "pi400", "all"],
+      "devices": ["pi5", "pi4", "pi400", "pi3", "all"],
       "capabilities": ["usb_otg", "rpi_connect"],
       "init_format": "cloudinit-rpi"
     },
@@ -52,7 +52,7 @@
       "camera_type": "arducam-64mp",
       "name": "OpenScan3 (Arducam Hawkeye 64MP)",
       "description": "Optimised build for the Arducam HawkEye with drivers and tuning blobs pre-installed.",
-      "devices": ["pi5", "pi4", "pi400", "all"],
+      "devices": ["pi5", "pi4", "pi400", "pi3", "all"],
       "capabilities": ["usb_otg", "rpi_connect"],
       "init_format": "cloudinit-rpi"
     },
@@ -70,7 +70,7 @@
       "camera_type": "imx519",
       "name": "OpenScan3 (Arducam IMX519 16MP) (Develop)",
       "description": "Developer image for the Arducam IMX519 camera, please read docs before use!",
-      "devices": ["pi5", "pi4", "pi400", "all"],
+      "devices": ["pi5", "pi4", "pi400", "pi3", "all"],
       "capabilities": ["usb_otg", "rpi_connect"],
       "init_format": "cloudinit-rpi",
       "is_develop": true
@@ -80,7 +80,7 @@
       "camera_type": "arducam-64mp",
       "name": "OpenScan3 (Arducam Hawkeye 64MP) (Develop)",
       "description": "Developer image for the Arducam Hawkeye, please read docs before use!",
-      "devices": ["pi5", "pi4", "pi400", "all"],
+      "devices": ["pi5", "pi4", "pi400", "pi3", "all"],
       "capabilities": ["usb_otg", "rpi_connect"],
       "init_format": "cloudinit-rpi",
       "is_develop": true
