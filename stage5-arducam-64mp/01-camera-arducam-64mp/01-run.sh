@@ -5,20 +5,22 @@ set -e
 
 echo "Configuring Arducam 64MP camera..."
 
-install_pivariety_packages() {
-  echo "Installing Arducam libcamera packages..."
-  wget -O /tmp/install_pivariety_pkgs.sh \
-    https://github.com/ArduCAM/Arducam-Pivariety-V4L2-Driver/releases/download/install_script/install_pivariety_pkgs.sh
-  chmod +x /tmp/install_pivariety_pkgs.sh
-  
-  # Patch the script to use unzip -o for non-interactive extraction
-  sed -i 's/unzip \.\//unzip -o .\//g' /tmp/install_pivariety_pkgs.sh
-  
-  /tmp/install_pivariety_pkgs.sh -p libcamera_dev
-  /tmp/install_pivariety_pkgs.sh -p libcamera_apps
+hold_installed_camera_packages() {
+  protected_patterns='libcamera* rpicam* librpicam* python3-libcamera python3-picamera2 python3-kms++ arducam* pivariety*'
+  held_packages="$(
+    for pattern in $protected_patterns; do
+      dpkg-query -W -f='${binary:Package}\n' "$pattern" 2>/dev/null || true
+    done | sort -u
+  )"
+
+  if [ -n "$held_packages" ]; then
+    echo "$held_packages" | xargs apt-mark hold
+  fi
 }
 
-install_pivariety_packages
+apt-get update
+apt-get install -y openscan3-camera-stack
+hold_installed_camera_packages
 
 echo "dtoverlay=arducam-64mp" >> /boot/firmware/config.txt
 echo "dtoverlay=vc4-kms-v3d,cma-512" >> /boot/firmware/config.txt

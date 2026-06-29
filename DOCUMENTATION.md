@@ -38,6 +38,11 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
   - CLI entry point: `openscan-updater`.
   - The legacy PHP `/admin` updater is not part of the image.
 
+- **Develop image helper** (`--with-develop` builds only)
+  - CLI entry point: `openscan-dev`.
+  - Lets developers deploy and test OpenScan3 firmware from a configurable Git repository and branch.
+  - Uses `/opt/openscan3-dev` and a systemd drop-in instead of changing the package-owned runtime files.
+
 ## Supported variants (camera-specific)
 
 Select the right image for your camera. Differences are applied in stage 5.
@@ -114,6 +119,9 @@ Run these on the Pi (SSH or local):
 - OpenScan updater CLI: `/usr/bin/openscan-updater`
 - OpenScan settings: `/etc/openscan3` (group-writable for `openscan`)
 - Boot config: `/boot/firmware/config.txt` (camera overlays added per variant)
+- Develop checkout root, if enabled: `/opt/openscan3-dev`
+- Develop helper config, if enabled: `/etc/openscan3-dev/config.env`
+- Develop service override, if enabled: `/etc/systemd/system/openscan3.service.d/20-dev-override.conf`
 
 ## Updating OpenScan3 (application code)
 
@@ -126,6 +134,49 @@ OpenScan runtime updates are package-based. The image installs the `dev` APT cha
   openscan-updater status --json
   openscan-updater update-openscan --dry-run --json
   ```
+
+## Develop Image Git Workflow
+
+This section applies only to images built with `./build-all.sh --with-develop ...` or `./build-all-docker.sh --with-develop ...`.
+
+Develop images include `openscan-dev`, which lets you test a firmware checkout without rebuilding the whole image. The image still starts with the signed APT-installed runtime until you explicitly deploy a checkout.
+
+```bash
+# Show current dev configuration and whether the systemd override is active
+openscan-dev status
+
+# Deploy the default configured repo/branch
+sudo openscan-dev deploy
+
+# Deploy a specific fork and branch
+sudo openscan-dev deploy \
+  --repo https://github.com/your-user/OpenScan3.git \
+  --branch feature/my-change
+```
+
+The helper clones or updates `/opt/openscan3-dev/src`, rebuilds `/opt/openscan3-dev/venv`, writes `/etc/systemd/system/openscan3.service.d/20-dev-override.conf`, and restarts `openscan3.service`.
+
+You can persist defaults without deploying immediately:
+
+```bash
+sudo openscan-dev config \
+  --repo https://github.com/your-user/OpenScan3.git \
+  --branch feature/my-change
+```
+
+Return to the package-owned runtime:
+
+```bash
+sudo openscan-dev disable
+```
+
+Re-enable an already prepared checkout:
+
+```bash
+sudo openscan-dev enable
+```
+
+The legacy PHP `/admin` updater is intentionally not used for this workflow. Git repo URL and branch are configured through `openscan-dev` and `/etc/openscan3-dev/config.env`.
 
 ## Flashing the image
 
