@@ -1,0 +1,5 @@
+Types: deb
+URIs: https://firmware.openscan.eu/apt
+Suites: dev
+Components: main
+Signed-By: /usr/share/keyrings/openscan-archive-keyring.gpg

@@ -16,26 +16,27 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 ## What’s in the image
 
 - **OpenScan3 service**
-  - Installed to `/opt/openscan3` and run in a Python venv.
-  - Systemd unit: `openscan3.service` (see `stage3-openscan/00-base/files/etc/systemd/system/openscan3.service`).
+  - Installed from the signed OpenScan APT repository as `openscan3-firmware`.
+  - Runtime releases live under `/opt/openscan3/releases/`, with `/opt/openscan3/current` pointing at the active release.
+  - Systemd unit: `openscan3.service` (owned by the Debian package).
 
 - **OpenScan3-Client web UI**
-  - Vue.js/Quasar SPA prebuilt into `/opt/openscan3-client`.
+  - Installed from the signed OpenScan APT repository as `openscan3-client`.
+  - Vue.js/Quasar SPA files are in `/usr/share/openscan3-client`.
   - Served statically by nginx (no separate systemd service).
   - Default routes: `/` (dashboard) with history fallback handled by nginx.
 
 - **nginx reverse proxy**
-  - Installed in stage3 (`stage3-openscan/02-nginx`).
-  - Base site `openscan3-api.conf` proxies `/api` to the OpenScan3 FastAPI backend (`127.0.0.1:8000`) and serves the SPA from `/opt/openscan3-client`.
-  - Admin site `openscan3-admin.conf` exposes the updater at `/admin/`.
-  - Additional locations (e.g., camera helpers) are included via `/etc/nginx/openscan3/locations-enabled/*.conf`.
+  - Installed as a dependency of `openscan3-firmware`.
+  - Package-owned site `/etc/nginx/sites-available/openscan3.conf` proxies `/api` to the OpenScan3 FastAPI backend (`127.0.0.1:8000`) and serves the SPA from `/usr/share/openscan3-client`.
 
 - **Persistent settings**
   - OpenScan settings are stored in `/etc/openscan3` (created and made group-writable by `stage3-openscan/00-base/01-run.sh`).
 
 - **Updater**
-  - A simple updater for OpenScan3 and the OpenScan3-Client SPA is reachable at `/admin`.
-  - Also reachable from within the OpenScan3-Client SPA.
+  - Installed from the signed OpenScan APT repository as `openscan3-updater`.
+  - CLI entry point: `openscan-updater`.
+  - The legacy PHP `/admin` updater is not part of the image.
 
 ## Supported variants (camera-specific)
 
@@ -77,12 +78,15 @@ Your build variant is chosen via the `.env` config used at build time (see `came
 - Typical endpoints consumed by the SPA: `/latest/device/info`, `/latest/projects`, and other REST/WS routes exposed by the firmware.
 
 ## Updater
-- Admin page: `http://<pi>/admin/`
-  - Minimal PHP page to:
-    - Download OpenScan3 device settings as tar.gz (`/etc/openscan3`).
-    - Download the packaged OpenScan3-Client bundle (`/opt/openscan3-client`).
-    - Trigger a quick update (see below). Default branch is `main`.
-  - Security: No authentication by default. Use only on trusted networks.
+
+Use the package-owned CLI:
+
+```bash
+openscan-updater status --json
+openscan-updater update-openscan --dry-run --json
+```
+
+The legacy PHP `/admin` updater endpoint is intentionally absent.
 
 ## Services and logs
 
@@ -102,43 +106,26 @@ Run these on the Pi (SSH or local):
 
 ## File and directory layout (key locations)
 
-- OpenScan app (runtime, editable install): `/opt/openscan3`
-- OpenScan git source copy: `/opt/openscan3-src` (used for future updates/sync)
-- Python venv for the service: `/opt/openscan3/venv`
-- OpenScan3-Client static files: `/opt/openscan3-client`
-- Nginx config roots: `/etc/nginx/sites-available/openscan3-api.conf`, `/etc/nginx/sites-available/openscan3-admin.conf`, and snippet dir `/etc/nginx/openscan3/locations-enabled/`
+- OpenScan app runtime: `/opt/openscan3/current`
+- OpenScan release directories: `/opt/openscan3/releases/`
+- Python venv for the service: `/opt/openscan3/current/venv`
+- OpenScan3-Client static files: `/usr/share/openscan3-client`
+- Nginx site config: `/etc/nginx/sites-available/openscan3.conf`
+- OpenScan updater CLI: `/usr/bin/openscan-updater`
 - OpenScan settings: `/etc/openscan3` (group-writable for `openscan`)
 - Boot config: `/boot/firmware/config.txt` (camera overlays added per variant)
 
 ## Updating OpenScan3 (application code)
 
-The service is installed in editable mode from `/opt/openscan3`, so changes there take effect after a restart.
-
-Example (on the Pi):
-
-```bash
-# Optional: update the source mirror
-sudo -u openscan bash -lc 'cd /opt/openscan3-src && git remote -v && git fetch --all && git checkout <desired-branch> && git pull'
-
-# Sync updated source into the runtime tree (without .git)
-sudo rsync -av --delete --exclude '.git' /opt/openscan3-src/ /opt/openscan3/
-
-# Restart the service
-sudo systemctl restart openscan3
-```
+OpenScan runtime updates are package-based. The image installs the `dev` APT channel from `https://firmware.openscan.eu/apt`.
 
 ### Updater
 
 - CLI:
   ```bash
-  # Default branch is main; add --keep-settings to preserve local overrides
-  sudo /usr/local/sbin/openscan3-update --branch main [--keep-settings]
+  openscan-updater status --json
+  openscan-updater update-openscan --dry-run --json
   ```
-  - Stops services, force-resets `/opt/openscan3-src` to `origin/<branch>`, syncs to `/opt/openscan3`, rebuilds the venv, refreshes `/etc/openscan3` unless retained, downloads the latest OpenScan3-Client bundle, then restarts services.
-
-- Web:
-  - Open `http://<pi>/admin/` (or the updater entry inside the SPA) and use the form to trigger the same updater.
-  - You can choose branch and optionally keep settings; the client bundle is always refreshed to the latest release.
 
 ## Flashing the image
 
@@ -180,7 +167,7 @@ We ship `scripts/generate-imager-json.py` to emit both the hosted repository met
 
 - **No dashboard on port 80**
   - Check services: `systemctl status nginx`.
-  - Confirm `/opt/openscan3-client` contains the built SPA (index.html, assets) and that `/etc/nginx/openscan3/locations-enabled/60-client.conf` exists.
+  - Confirm `/usr/share/openscan3-client` contains the SPA (index.html, assets) and that `/etc/nginx/sites-available/openscan3.conf` exists.
 
 - **UI shows setup screen / device not initialized**
   - Check OpenScan3: `systemctl status openscan3` and `journalctl -u openscan3 -e -f`.

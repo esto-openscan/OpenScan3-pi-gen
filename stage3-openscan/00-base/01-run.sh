@@ -4,74 +4,50 @@ echo "Configuring OpenScan3 base components"
 
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 PROJECT_ROOT="$(readlink -f "${SCRIPT_DIR}/../..")"
-SUBMODULE_DIR="${PROJECT_ROOT}/OpenScan3"
-SUBMODULE_GIT_DIR="${PROJECT_ROOT}/OpenScan3-git"
-PYPROJECT_FILE="${SUBMODULE_DIR}/pyproject.toml"
+SETTINGS_DIR="${PROJECT_ROOT}/OpenScan3/settings"
 
-if [ ! -f "${PYPROJECT_FILE}" ]; then
-  echo "pyproject.toml not found at ${PYPROJECT_FILE}" >&2
+if [ ! -d "${SETTINGS_DIR}" ]; then
+  echo "OpenScan3 default settings not found at ${SETTINGS_DIR}" >&2
   exit 1
 fi
 
-GPHOTO2_PYPI_VERSION="$(sed -n 's/^[[:space:]]*"gphoto2==\([^"]*\)".*$/\1/p' "${PYPROJECT_FILE}" | head -n 1)"
-if [ -z "${GPHOTO2_PYPI_VERSION}" ]; then
-  echo "gphoto2 dependency not found in ${PYPROJECT_FILE}" >&2
-  exit 1
-fi
-PIWHEELS_INDEX_URL="https://www.piwheels.org/simple"
-
-export GPHOTO2_PYPI_VERSION
-export PIWHEELS_INDEX_URL
-
-if [ ! -d "${SUBMODULE_GIT_DIR}" ]; then
-  SUBMODULE_GIT_DIR="$(git -C "${SUBMODULE_DIR}" rev-parse --absolute-git-dir)"
-fi
-
-install -m 755 -D files/usr/local/bin/openscan3 "${ROOTFS_DIR}/usr/local/bin/openscan3"
-install -m 644 -D files/etc/systemd/system/openscan3.service "${ROOTFS_DIR}/etc/systemd/system/openscan3.service"
-install -m 755 -D files/usr/local/sbin/openscan3-update "${ROOTFS_DIR}/usr/local/sbin/openscan3-update"
+install -m 644 -D files/usr/share/keyrings/openscan-archive-keyring.gpg "${ROOTFS_DIR}/usr/share/keyrings/openscan-archive-keyring.gpg"
+install -m 644 -D files/etc/apt/sources.list.d/openscan.sources "${ROOTFS_DIR}/etc/apt/sources.list.d/openscan.sources"
 install -m 644 -D files/etc/avahi/services/openscan3.service "${ROOTFS_DIR}/etc/avahi/services/openscan3.service"
 install -m 644 -D files/etc/polkit-1/rules.d/49-openscan.rules "${ROOTFS_DIR}/etc/polkit-1/rules.d/49-openscan.rules"
 
-rm -rf "${ROOTFS_DIR}/opt/openscan3" "${ROOTFS_DIR}/opt/openscan3-src"
-
-install -d "${ROOTFS_DIR}/opt/openscan3-src"
-rsync -a --delete --exclude '.git' "${SUBMODULE_DIR}/" "${ROOTFS_DIR}/opt/openscan3-src/"
-
-install -d "${ROOTFS_DIR}/opt/openscan3-src/.git"
-rsync -a --delete "${SUBMODULE_GIT_DIR}/" "${ROOTFS_DIR}/opt/openscan3-src/.git/"
-git config --file "${ROOTFS_DIR}/opt/openscan3-src/.git/config" core.worktree /opt/openscan3-src
-
-# Create working copy (without .git) used at runtime and for editable install
-install -d "${ROOTFS_DIR}/opt/openscan3"
-rsync -av --delete "${ROOTFS_DIR}/opt/openscan3-src/" "${ROOTFS_DIR}/opt/openscan3/"
-
+rm -rf "${ROOTFS_DIR}/opt/openscan3-src"
+install -d "${ROOTFS_DIR}/usr/share/openscan3-image/default-settings"
+rsync -a --delete "${SETTINGS_DIR}/" "${ROOTFS_DIR}/usr/share/openscan3-image/default-settings/"
 
 on_chroot <<'EOF'
 set -e
 
-adduser --system --group --home /opt/openscan3 openscan
+if ! getent group openscan >/dev/null; then
+  addgroup --system openscan
+fi
+if ! getent passwd openscan >/dev/null; then
+  adduser --system --ingroup openscan --home /var/openscan3 --no-create-home --disabled-login openscan
+fi
+
 # Add openscan user to relevant hardware groups
 for grp in camera video render plugdev input i2c spi gpio netdev systemd-journal; do
   groupadd -f "$grp"
   adduser openscan "$grp"
 done
 
+apt-get update
+apt-get install -y openscan3-updater openscan3-firmware openscan3-client
+
 # Allow the default interactive user (if present) to edit settings without sudo
 if id -u pi >/dev/null 2>&1; then
   adduser pi openscan || true
 fi
 
-# Allow nginx/PHP to read settings and trigger updater
-if id -u www-data >/dev/null 2>&1; then
-  adduser www-data openscan || true
-fi
-
-
 # Create settings directory and copy defaults
 install -d -m 2775 /etc/openscan3
 chown -R openscan:openscan /etc/openscan3
-cp -a /opt/openscan3-src/settings/. /etc/openscan3/
+cp -a /usr/share/openscan3-image/default-settings/. /etc/openscan3/
 
 # Ensure ownership after copy (cp -a preserves root:root from image build)
 chown -R openscan:openscan /etc/openscan3
@@ -100,33 +76,19 @@ setfacl -Rdm g::rwX /var/openscan3
 setfacl -Rm m::rwX /var/openscan3
 setfacl -Rdm m::rwX /var/openscan3
 
-chown -R openscan:openscan /opt/openscan3 /opt/openscan3-src
-
-# install OpenScan3 as pip package
-runuser -u openscan -- python3 -m venv --system-site-packages /opt/openscan3/venv
-runuser -u openscan -- bash -c "set -e; source /opt/openscan3/venv/bin/activate && pip install --upgrade pip && pip install --extra-index-url '${PIWHEELS_INDEX_URL}' --only-binary=:all: 'gphoto2==${GPHOTO2_PYPI_VERSION}'"
-runuser -u openscan -- bash -c 'cd /opt/openscan3 && source venv/bin/activate && pip install -e .'
-
-chmod +x /usr/local/bin/openscan3
 systemctl enable openscan3
 systemctl enable avahi-daemon
 
 # Clean up legacy sudoers files (permissions now handled via polkit / group membership)
 rm -f /etc/sudoers.d/openscan-service
 rm -f /etc/sudoers.d/openscan-nodered
-
-# Allow running the updater from CLI (openscan) and via web (www-data)
-cat >/etc/sudoers.d/openscan-updater <<'SUDOERS'
-openscan ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update
-openscan ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --branch *
-openscan ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --keep-settings
-openscan ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --branch * --keep-settings
-www-data ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update
-www-data ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --branch *
-www-data ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --keep-settings
-www-data ALL=(root) NOPASSWD:/usr/local/sbin/openscan3-update --branch * --keep-settings
-SUDOERS
-chmod 0440 /etc/sudoers.d/openscan-updater
-
+rm -f /etc/sudoers.d/openscan-updater
 rm -f /etc/sudoers.d/openscan-network
+
+test -f /usr/share/keyrings/openscan-archive-keyring.gpg
+test -f /etc/apt/sources.list.d/openscan.sources
+dpkg-query -W openscan3-updater openscan3-firmware openscan3-client
+if command -v nginx >/dev/null 2>&1; then
+  nginx -t
+fi
 EOF
