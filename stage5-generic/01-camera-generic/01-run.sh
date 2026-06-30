@@ -3,6 +3,6 @@
 on_chroot << 'EOF'
 set -e
 
-echo "Generic camera selected — using stock libcamera packages."
-echo "# generic cam – no dtoverlay" >> /boot/firmware/config.txt
+echo "Generic camera selected - using stock Raspberry Pi camera packages."
+echo "# generic cam - no dtoverlay" >> /boot/firmware/config.txt
 EOF
