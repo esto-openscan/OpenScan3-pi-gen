@@ -27,8 +27,13 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
   - Default routes: `/` (dashboard) with history fallback handled by nginx.
 
 - **nginx reverse proxy**
-  - Installed as a dependency of `openscan3-firmware`.
+  - Installed and configured by `openscan3-system-config`.
   - Package-owned site `/etc/nginx/sites-available/openscan3.conf` proxies `/api` to the OpenScan3 FastAPI backend (`127.0.0.1:8000`) and serves the SPA from `/usr/share/openscan3-client`.
+
+- **OpenScan3 system configuration**
+  - Installed from the signed OpenScan APT repository as `openscan3-system-config`.
+  - Owns the nginx site, OpenScan APT public key and source file, update policy defaults, updater sudoers bridge, tmpfiles directories, and logrotate defaults.
+  - Replaces the old pi-gen-owned nginx/admin glue. The legacy PHP `/admin` updater is not part of the image.
 
 - **Persistent settings**
   - OpenScan settings are stored in `/etc/openscan3` (created and made group-writable by `stage3-openscan/00-base/01-run.sh`).
@@ -36,7 +41,7 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 - **Updater**
   - Installed from the signed OpenScan APT repository as `openscan3-updater`.
   - CLI entry point: `openscan-updater`.
-  - The legacy PHP `/admin` updater is not part of the image.
+  - The firmware backend can call narrow updater commands through `/etc/sudoers.d/openscan-updater`.
 
 - **Develop image helper** (`--with-develop` builds only)
   - CLI entry point: `openscan-dev`.
@@ -117,6 +122,9 @@ Run these on the Pi (SSH or local):
 - OpenScan3-Client static files: `/usr/share/openscan3-client`
 - Nginx site config: `/etc/nginx/sites-available/openscan3.conf`
 - OpenScan updater CLI: `/usr/bin/openscan-updater`
+- OpenScan APT keyring: `/usr/share/keyrings/openscan-archive-keyring.gpg`
+- OpenScan APT source: `/etc/apt/sources.list.d/openscan.sources`
+- OpenScan update policy defaults: `/etc/openscan3/update-policy.json`
 - OpenScan settings: `/etc/openscan3` (group-writable for `openscan`)
 - Boot config: `/boot/firmware/config.txt` (camera overlays added per variant)
 - Develop checkout root, if enabled: `/opt/openscan3-dev`

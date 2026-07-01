@@ -12,7 +12,7 @@ For instructions on using the generated images, see the [image documentation](DO
 - `stage6-develop/` &mdash; optional develop-image stage with SSH/dev access, Samba dev shares, task autodiscovery flags, and `openscan-dev` for Git-based firmware testing on-device.
 - `stage4-nodered/` &mdash; unused legacy stage for the deprecated Node-RED frontend.
 - `stage5-[camera-config]` &mdash; camera-specific stages appended after the stock `stage3` pipeline.
-- `camera-configs/` &mdash; per-camera environment files declaring `IMG_NAME`, `CAMERA_TYPE`, and the `STAGE_LIST` to build.
+- `build-configs/` &mdash; shared and per-camera environment files declaring `CAMERA_TYPE`, image suffixes, and the `STAGE_LIST` to build. The image version prefix is resolved from the `openscan3-firmware` Debian package in the signed OpenScan APT repository.
 - `build-all.sh` &mdash; helper script that loads camera configs and invokes `pi-gen/build.sh`.
 
 ## Prerequisites
@@ -53,7 +53,7 @@ git submodule add --name OpenScan3 https://github.com/OpenScan-org/OpenScan3.git
 ./build-all-docker.sh generic imx519
 ```
 
-Environment variables inside each `.env` are exported before launching `pi-gen/build.sh`. Customize or add new configs by copying an existing file in `camera-configs/` and adjusting values. The Docker helper `build-all-docker.sh` generates a temporary config per camera and calls `pi-gen/build-docker.sh -c …`; deployment artifacts still land under `pi-gen/deploy/`.
+Environment variables inside each `.env` are exported before launching `pi-gen/build.sh`. Customize or add new configs by copying an existing file in `build-configs/` and adjusting values. The Docker helper `build-all-docker.sh` generates a temporary config per camera and calls `pi-gen/build-docker.sh -c …`; deployment artifacts still land under `pi-gen/deploy/`.
 
 ## Customizing Stages
 
@@ -94,7 +94,7 @@ CLI wrapper for native builds (runs `pi-gen/build.sh`):
 - `./build-all.sh --with-develop ...` &mdash; append `stage6-develop` after the selected `STAGE_LIST` to add SSH/dev access, Samba dev shares, and the `openscan-dev` Git deploy helper.
 - Run `./scripts/prepare-build.sh --skip-client` beforehand when building outside Docker to ensure the OpenScan3 submodule is present for image default settings. The client SPA is now installed from the signed OpenScan APT repository.
 
-Environment loading is handled by `scripts/config-loader.sh`. Each run exports the common defaults from `build-configs/base.env`, then overlays the selected camera `.env`. The script auto-detects `sudo`; on systems without `sudo` it runs pi-gen directly.
+Environment loading is handled by `scripts/config-loader.sh`. Each run exports the common defaults from `build-configs/base.env`, resolves the image version from the `openscan3-firmware` APT package, then overlays the selected camera `.env`. The script auto-detects `sudo`; on systems without `sudo` it runs pi-gen directly.
 
 ### `build-all-docker.sh`
 

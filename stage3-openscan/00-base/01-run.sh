@@ -37,7 +37,11 @@ for grp in camera video render plugdev input i2c spi gpio netdev systemd-journal
 done
 
 apt-get update
-apt-get install -y openscan3-updater openscan3-firmware openscan3-client
+apt-get install -y \
+  openscan3-system-config \
+  openscan3-updater \
+  openscan3-firmware \
+  openscan3-client
 
 # Allow the default interactive user (if present) to edit settings without sudo
 if id -u pi >/dev/null 2>&1; then
@@ -82,12 +86,11 @@ systemctl enable avahi-daemon
 # Clean up legacy sudoers files (permissions now handled via polkit / group membership)
 rm -f /etc/sudoers.d/openscan-service
 rm -f /etc/sudoers.d/openscan-nodered
-rm -f /etc/sudoers.d/openscan-updater
 rm -f /etc/sudoers.d/openscan-network
 
 test -f /usr/share/keyrings/openscan-archive-keyring.gpg
 test -f /etc/apt/sources.list.d/openscan.sources
-dpkg-query -W openscan3-updater openscan3-firmware openscan3-client
+dpkg-query -W openscan3-system-config openscan3-updater openscan3-firmware openscan3-client
 if command -v nginx >/dev/null 2>&1; then
   nginx -t
 fi
