@@ -9,15 +9,12 @@ usage() {
   cat <<'EOF'
 Usage: scripts/prepare-build.sh [options]
 
-Syncs git submodules and downloads the latest OpenScan3-Client SPA build so
-native (non-docker) pi-gen runs have every asset required by stage3.
+Syncs the pi-gen submodule so native (non-docker) pi-gen runs have the
+required upstream build scripts.
 
 Options:
   --skip-submodules   Skip git submodule sync/update
-  --skip-client       Skip downloading the OpenScan3-Client dist archive
-  --client-repo REPO  Override GitHub repo (default: esto-openscan/OpenScan3-Client)
-  --spa-zip NAME      Override asset name (default: spa.zip)
-  --client-url URL    Override full download URL (takes precedence over repo/name)
+  --skip-client       Deprecated no-op; client files are installed from .deb
   -h, --help          Show this help
 EOF
 }
@@ -31,16 +28,8 @@ require_cmd() {
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(readlink -f "${SCRIPT_DIR}/..")"
-CLIENT_DIST_DIR="${PROJECT_ROOT}/OpenScan3-client-dist"
-
-DEFAULT_CLIENT_REPO="OpenScan-org/OpenScan3-Client"
-DEFAULT_SPA_ZIP="spa.zip"
 
 SKIP_SUBMODULES=0
-SKIP_CLIENT=0
-CLIENT_REPO="${CLIENT_REPO:-$DEFAULT_CLIENT_REPO}"
-SPA_ZIP_NAME="${SPA_ZIP_NAME:-$DEFAULT_SPA_ZIP}"
-CLIENT_URL_OVERRIDE=""
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -49,20 +38,8 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --skip-client)
-      SKIP_CLIENT=1
+      log "Ignoring deprecated --skip-client; openscan3-client is installed from the Debian package."
       shift
-      ;;
-    --client-repo)
-      CLIENT_REPO="$2"
-      shift 2
-      ;;
-    --spa-zip)
-      SPA_ZIP_NAME="$2"
-      shift 2
-      ;;
-    --client-url)
-      CLIENT_URL_OVERRIDE="$2"
-      shift 2
       ;;
     -h|--help)
       usage
@@ -76,39 +53,14 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-CLIENT_URL="${CLIENT_URL_OVERRIDE:-"https://github.com/${CLIENT_REPO}/releases/latest/download/${SPA_ZIP_NAME}"}"
-
 require_cmd git
-require_cmd curl
-require_cmd unzip
 
 if [[ $SKIP_SUBMODULES -eq 0 ]]; then
-  log "Syncing git submodules..."
-  git -C "${PROJECT_ROOT}" submodule sync --recursive
-  log "Updating git submodules (remote tracking)..."
-  git -C "${PROJECT_ROOT}" submodule update --init --checkout --recursive --remote
-fi
-
-TMP_DIR="$(mktemp -d)"
-cleanup() {
-  rm -rf "${TMP_DIR}"
-}
-trap cleanup EXIT
-
-if [[ $SKIP_CLIENT -eq 0 ]]; then
-  ZIP_PATH="${TMP_DIR}/openscan3-client.zip"
-  log "Downloading OpenScan3-Client SPA from ${CLIENT_URL} ..."
-  curl -fsSL -o "${ZIP_PATH}" "${CLIENT_URL}"
-
-  log "Extracting SPA archive into ${CLIENT_DIST_DIR} ..."
-  rm -rf "${CLIENT_DIST_DIR}"
-  mkdir -p "${CLIENT_DIST_DIR}"
-  unzip -q "${ZIP_PATH}" -d "${CLIENT_DIST_DIR}"
-  log "OpenScan3 client ready at ${CLIENT_DIST_DIR}"
-fi
-
-if [[ $SKIP_SUBMODULES -eq 0 || $SKIP_CLIENT -eq 0 ]]; then
+  log "Syncing pi-gen submodule..."
+  git -C "${PROJECT_ROOT}" submodule sync pi-gen
+  log "Updating pi-gen submodule..."
+  git -C "${PROJECT_ROOT}" submodule update --init --checkout pi-gen
   log "Preparation complete."
 else
-  log "Nothing to do (both steps skipped)."
+  log "Nothing to do."
 fi

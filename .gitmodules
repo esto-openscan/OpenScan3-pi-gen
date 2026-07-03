@@ -2,7 +2,3 @@
 	path = pi-gen
 	url = https://github.com/RPi-Distro/pi-gen.git
 	branch = arm64
-[submodule "OpenScan3"]
-	path = OpenScan3
-	url = https://github.com/OpenScan-org/OpenScan3.git
-	branch = main

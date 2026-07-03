@@ -169,11 +169,13 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
     fi
 
     build_suffix=""
+    openscan_apt_channel="stable"
     if [ "$ENABLE_STAGE6" -eq 1 ]; then
         build_suffix="_DEVELOP"
+        openscan_apt_channel="nightly"
     fi
 
-    ${SUDO:+$SUDO }CAMERA_TYPE=$CAMERA_TYPE IMG_NAME=$IMG_NAME          STAGE_LIST="$STAGE_LIST_FOR_BUILD"          TARGET_HOSTNAME="${TARGET_HOSTNAME}"          "$PI_GEN_DIR"/build.sh
+    ${SUDO:+$SUDO }CAMERA_TYPE=$CAMERA_TYPE IMG_NAME=$IMG_NAME OPENSCAN_APT_CHANNEL="$openscan_apt_channel" STAGE_LIST="$STAGE_LIST_FOR_BUILD" TARGET_HOSTNAME="${TARGET_HOSTNAME}" "$PI_GEN_DIR"/build.sh
 
     copy_sanitized_artifacts "$build_suffix"
 done

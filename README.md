@@ -1,13 +1,12 @@
 # OpenScan3 Pi Image Builder
 
-This repository wraps [Raspberry Pi OS pi-gen](https://github.com/RPi-Distro/pi-gen) and [OpenScan3](https://github.com/OpenScan-org/OpenScan3)  as a submodules and adds custom stages for camera setups plus the Vue.js/Quasar-based [OpenScan3-Client](https://github.com/OpenScan-org/OpenScan3-Client) SPA. It produces Raspberry Pi OS Lite based images with camera-specific tweaks and the OpenScan3 firmware.
+This repository wraps [Raspberry Pi OS pi-gen](https://github.com/RPi-Distro/pi-gen) as a submodule and adds custom stages for camera setups. It produces Raspberry Pi OS Lite based images with camera-specific tweaks and the package-based OpenScan3 runtime from the signed OpenScan APT repository.
 
 For instructions on using the generated images, see the [image documentation](DOCUMENTATION.md).
 
 ## Repository Layout
 
 - `pi-gen/` &mdash; upstream pi-gen submodule. Do not modify directly; keep customizations outside.
-- `OpenScan3/` &mdash; OpenScan3 application/firmware as a git submodule. Used for image default settings; runtime firmware is installed from the signed OpenScan APT repository.
 - `stage3-openscan/` &mdash; additional OpenScan3 stages appended after the stock `stage0`&ndash;`stage2` pipeline. This is the package-based runtime baseline.
 - `stage6-develop/` &mdash; optional develop-image stage with SSH/dev access, Samba dev shares, task autodiscovery flags, and `openscan-dev` for Git-based firmware testing on-device.
 - `stage4-nodered/` &mdash; unused legacy stage for the deprecated Node-RED frontend.
@@ -31,10 +30,7 @@ cd OpenScan3-pi-gen
 # if already cloned without submodules
 git submodule update --init --recursive
 
-# if the OpenScan3 submodule is not yet added in your clone, add it once
-git submodule add --name OpenScan3 https://github.com/OpenScan-org/OpenScan3.git OpenScan3
-
-# prepare local sources (sync submodules + fetch SPA web UI bundle)
+# prepare local sources (sync pi-gen submodule)
 ./scripts/prepare-build.sh
 
 # build a single variant by short name (maps to build-configs/generic.env)
@@ -71,12 +67,12 @@ rm -rf pi-gen/work pi-gen/deploy
 
 ## Releasing Updates
 
-1. Pull upstream `pi-gen` and `OpenScan3` updates:
+1. Pull upstream `pi-gen` updates:
    ```bash
-   git submodule sync --recursive 
-   git submodule update --remote --checkout --recursive # checkout instead of merging local branches 
-   git add pi-gen OpenScan3 
-   git commit -m "Update submodules (pi-gen@arm64, OpenScan3@feature/os3-package)" 
+   git submodule sync pi-gen
+   git submodule update --remote --checkout pi-gen
+   git add pi-gen
+   git commit -m "Update pi-gen submodule"
    ```
 2. Rebuild target images.
 3. Publish resulting `.img` files from `pi-gen/deploy/`.
@@ -92,7 +88,7 @@ CLI wrapper for native builds (runs `pi-gen/build.sh`):
 - `./build-all.sh build-configs/imx519.env` &mdash; build via explicit path.
 - `./build-all.sh --skip-cleanup …` &mdash; skip the interactive cache cleanup prompt.
 - `./build-all.sh --with-develop ...` &mdash; append `stage6-develop` after the selected `STAGE_LIST` to add SSH/dev access, Samba dev shares, and the `openscan-dev` Git deploy helper.
-- Run `./scripts/prepare-build.sh --skip-client` beforehand when building outside Docker to ensure the OpenScan3 submodule is present for image default settings. The client SPA is now installed from the signed OpenScan APT repository.
+- Run `./scripts/prepare-build.sh` beforehand when building outside Docker to ensure the `pi-gen` submodule is present. Firmware defaults and client assets are installed by Debian packages from the signed OpenScan APT repository.
 
 Environment loading is handled by `scripts/config-loader.sh`. Each run exports the common defaults from `build-configs/base.env`, resolves the image version from the `openscan3-firmware` APT package, then overlays the selected camera `.env`. The script auto-detects `sudo`; on systems without `sudo` it runs pi-gen directly.
 
@@ -102,14 +98,13 @@ Containerized variant that invokes `pi-gen/build-docker.sh -c <temp-config>` per
 
 - Accepts the same positional arguments and flags as `build-all.sh` (`--skip-cleanup`, `--with-develop`, `.env` paths or short names).
 - Creates a temporary, per-camera config file with the resolved `STAGE_LIST`, `IMG_NAME`, and `TARGET_HOSTNAME`.
-- Mounts the OpenScan3 submodule and git metadata into the container so Stage 3 can install image default settings. Firmware and client runtime packages are installed from the signed OpenScan APT repository.
 - Exposes work/deploy/cache directories via bind mounts (`$PI_GEN_DIR/work`, `$PI_GEN_DIR/deploy`, `.cache/pi-gen/apt`) so artifacts persist on the host.
 
 Both scripts respect the `STAGE_LIST` declared in each camera env. By default builds stop after `stage3-openscan`; pass `--with-develop` to append `stage6-develop`. Use the legacy Stage 4 only by manually editing `STAGE_LIST` if Node-RED testing is required.
 
 ## Develop Images
 
-Develop images still boot from the signed APT-installed OpenScan runtime by default. To test firmware from a Git repository on the Pi, use the `openscan-dev` helper installed by `stage6-develop`:
+Develop images boot from the signed APT-installed OpenScan runtime on the `nightly` channel by default. Normal images use the `stable` channel. To test firmware from a Git repository on the Pi, use the `openscan-dev` helper installed by `stage6-develop`:
 
 ```bash
 sudo openscan-dev deploy --repo https://github.com/OpenScan-org/OpenScan3.git --branch develop

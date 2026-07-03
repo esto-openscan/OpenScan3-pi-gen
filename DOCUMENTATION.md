@@ -122,7 +122,8 @@ Run these on the Pi (SSH or local):
 - OpenScan3-Client static files: `/usr/share/openscan3-client`
 - Nginx site config: `/etc/nginx/sites-available/openscan3.conf`
 - OpenScan updater CLI: `/usr/bin/openscan-updater`
-- OpenScan APT keyring: `/usr/share/keyrings/openscan-archive-keyring.gpg`
+- OpenScan stable APT keyring: `/usr/share/keyrings/openscan-stable-archive-keyring.gpg`
+- OpenScan nightly APT keyring: `/usr/share/keyrings/openscan-nightly-archive-keyring.gpg`
 - OpenScan APT source: `/etc/apt/sources.list.d/openscan.sources`
 - OpenScan update policy defaults: `/etc/openscan3/update-policy.json`
 - OpenScan settings: `/etc/openscan3` (group-writable for `openscan`)
@@ -133,7 +134,7 @@ Run these on the Pi (SSH or local):
 
 ## Updating OpenScan3 (application code)
 
-OpenScan runtime updates are package-based. The image installs the `dev` APT channel from `https://firmware.openscan.eu/apt`.
+OpenScan runtime updates are package-based. Normal images install the `stable` APT channel from `https://firmware.openscan.eu/apt`; develop images install the `nightly` channel. Switching channels changes future update candidates only and does not downgrade already installed packages.
 
 ### Updater
 

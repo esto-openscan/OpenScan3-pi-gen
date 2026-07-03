@@ -2,23 +2,34 @@
 
 echo "Configuring OpenScan3 base components"
 
-SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
-PROJECT_ROOT="$(readlink -f "${SCRIPT_DIR}/../..")"
-SETTINGS_DIR="${PROJECT_ROOT}/OpenScan3/settings"
+OPENSCAN_APT_CHANNEL="${OPENSCAN_APT_CHANNEL:-stable}"
+case "${OPENSCAN_APT_CHANNEL}" in
+  stable)
+    OPENSCAN_APT_KEYRING="/usr/share/keyrings/openscan-stable-archive-keyring.gpg"
+    ;;
+  nightly)
+    OPENSCAN_APT_KEYRING="/usr/share/keyrings/openscan-nightly-archive-keyring.gpg"
+    ;;
+  *)
+    echo "Unsupported OPENSCAN_APT_CHANNEL: ${OPENSCAN_APT_CHANNEL}" >&2
+    exit 1
+    ;;
+esac
 
-if [ ! -d "${SETTINGS_DIR}" ]; then
-  echo "OpenScan3 default settings not found at ${SETTINGS_DIR}" >&2
-  exit 1
-fi
-
-install -m 644 -D files/usr/share/keyrings/openscan-archive-keyring.gpg "${ROOTFS_DIR}/usr/share/keyrings/openscan-archive-keyring.gpg"
-install -m 644 -D files/etc/apt/sources.list.d/openscan.sources "${ROOTFS_DIR}/etc/apt/sources.list.d/openscan.sources"
+install -m 644 -D files/usr/share/keyrings/openscan-stable-archive-keyring.gpg "${ROOTFS_DIR}/usr/share/keyrings/openscan-stable-archive-keyring.gpg"
+install -m 644 -D files/usr/share/keyrings/openscan-nightly-archive-keyring.gpg "${ROOTFS_DIR}/usr/share/keyrings/openscan-nightly-archive-keyring.gpg"
 install -m 644 -D files/etc/avahi/services/openscan3.service "${ROOTFS_DIR}/etc/avahi/services/openscan3.service"
 install -m 644 -D files/etc/polkit-1/rules.d/49-openscan.rules "${ROOTFS_DIR}/etc/polkit-1/rules.d/49-openscan.rules"
 
+cat > "${ROOTFS_DIR}/etc/apt/sources.list.d/openscan.sources" <<EOF
+Types: deb
+URIs: https://firmware.openscan.eu/apt
+Suites: ${OPENSCAN_APT_CHANNEL}
+Components: main
+Signed-By: ${OPENSCAN_APT_KEYRING}
+EOF
+
 rm -rf "${ROOTFS_DIR}/opt/openscan3-src"
-install -d "${ROOTFS_DIR}/usr/share/openscan3-image/default-settings"
-rsync -a --delete "${SETTINGS_DIR}/" "${ROOTFS_DIR}/usr/share/openscan3-image/default-settings/"
 
 on_chroot <<'EOF'
 set -e
@@ -48,12 +59,9 @@ if id -u pi >/dev/null 2>&1; then
   adduser pi openscan || true
 fi
 
-# Create settings directory and copy defaults
+# Create settings directory. Package postinst scripts install defaults without
+# overwriting locally edited files.
 install -d -m 2775 /etc/openscan3
-chown -R openscan:openscan /etc/openscan3
-cp -a /usr/share/openscan3-image/default-settings/. /etc/openscan3/
-
-# Ensure ownership after copy (cp -a preserves root:root from image build)
 chown -R openscan:openscan /etc/openscan3
 
 # Ensure group-writable perms and setgid on all subdirs
@@ -88,7 +96,8 @@ rm -f /etc/sudoers.d/openscan-service
 rm -f /etc/sudoers.d/openscan-nodered
 rm -f /etc/sudoers.d/openscan-network
 
-test -f /usr/share/keyrings/openscan-archive-keyring.gpg
+test -f /usr/share/keyrings/openscan-stable-archive-keyring.gpg
+test -f /usr/share/keyrings/openscan-nightly-archive-keyring.gpg
 test -f /etc/apt/sources.list.d/openscan.sources
 dpkg-query -W openscan3-system-config openscan3-updater openscan3-firmware openscan3-client
 if command -v nginx >/dev/null 2>&1; then

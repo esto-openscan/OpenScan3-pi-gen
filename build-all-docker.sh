@@ -116,6 +116,7 @@ run_docker_build_variant() {
     local target_hostname="$3"
     local cam_config="$4"
     local flavor_label="$5"
+    local openscan_apt_channel="$6"
 
     local tmp_config
     tmp_config=$(mktemp "${TMPDIR:-/tmp}/pigen-docker-config.XXXXXX")
@@ -132,24 +133,6 @@ run_docker_build_variant() {
         "--volume=${HOST_DEPLOY_DIR}:/pi-gen/deploy"
         "--volume=${HOST_APT_CACHE_DIR}:/var/cache/apt"
     )
-
-    local openscan_dir="${PROJECT_ROOT}/OpenScan3"
-    if [ -d "${openscan_dir}" ]; then
-        openscan_dir=$(realpath "${openscan_dir}")
-        docker_volume_opts+=("--volume=${openscan_dir}:/pi-gen/OpenScan3")
-    fi
-
-    local openscan_git_dir="${PROJECT_ROOT}/.git/modules/OpenScan3"
-    if [ -d "${openscan_git_dir}" ]; then
-        openscan_git_dir=$(realpath "${openscan_git_dir}")
-        docker_volume_opts+=("--volume=${openscan_git_dir}:/pi-gen/OpenScan3-git")
-    fi
-
-    local openscan_client_dist="${PROJECT_ROOT}/OpenScan3-client-dist"
-    if [ -d "${openscan_client_dist}" ]; then
-        openscan_client_dist=$(realpath "${openscan_client_dist}")
-        docker_volume_opts+=("--volume=${openscan_client_dist}:/pi-gen/OpenScan3-client-dist")
-    fi
 
     local stage
     for stage in "${stage_items[@]}"; do
@@ -178,6 +161,7 @@ run_docker_build_variant() {
     printf 'STAGE_LIST="%s"\n' "${container_stage_items[*]}" >> "$tmp_config"
     printf 'IMG_NAME="%s"\n' "$img_name" >> "$tmp_config"
     printf 'TARGET_HOSTNAME="%s"\n' "$target_hostname" >> "$tmp_config"
+    printf 'OPENSCAN_APT_CHANNEL="%s"\n' "$openscan_apt_channel" >> "$tmp_config"
 
     if ! grep -q '^WORK_DIR=' "$tmp_config"; then
         printf 'WORK_DIR="%s"\n' "/pi-gen/work/${img_name}" >> "$tmp_config"
@@ -315,11 +299,13 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
     build_stage_lists=("${base_stage_list}")
     build_img_names=("${base_img_name}")
     build_labels=("")
+    build_channels=("stable")
 
     if [ "$ENABLE_STAGE6" -eq 1 ]; then
         build_stage_lists+=("${base_stage_list} stage6-develop")
         build_img_names+=("${base_img_name}_DEVELOP")
         build_labels+=("develop")
+        build_channels+=("nightly")
     fi
 
     for idx in "${!build_stage_lists[@]}"; do
@@ -327,7 +313,8 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
             "${build_img_names[$idx]}" \
             "${TARGET_HOSTNAME}" \
             "$cam_config" \
-            "${build_labels[$idx]}"
+            "${build_labels[$idx]}" \
+            "${build_channels[$idx]}"
 
         copy_sanitized_artifacts "${build_img_names[$idx]}"
     done
