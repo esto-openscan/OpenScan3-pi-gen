@@ -11,4 +11,8 @@ echo 'openscan:openscan' | chpasswd
 systemctl enable ssh
 chsh -s /bin/bash openscan
 adduser openscan sudo
+
+getent passwd openscan | grep -q ':/bin/bash$'
+id -nG openscan | grep -qw sudo
+systemctl is-enabled ssh >/dev/null
 EOF

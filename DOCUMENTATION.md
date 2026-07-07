@@ -53,19 +53,23 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 Select the right image for your camera. Differences are applied in stage 5.
 
 - **Generic (experimental)** (`stage5-generic`)
-  - Installs stock `libcamera` packages.
-  - Adds a comment to `/boot/firmware/config.txt`; no camera overlay is forced (see `stage5-generic/01-camera-generic/00-packages`, `01-run.sh`).
+  - Installs `openscan3-generic-camera-stack`.
+  - No camera overlay is forced.
 
 - **IMX519** (`stage5-imx519`)
-  - Installs Arducam PiVariety `libcamera` packages.
-  - Appends `dtoverlay=imx519` to `/boot/firmware/config.txt` (see `stage5-imx519/01-camera-imx519/01-run.sh`).
+  - Installs `openscan3-imx519-camera-stack`.
+  - The package writes an OpenScan-managed `dtoverlay=imx519` block to `/boot/firmware/config.txt`.
 
 - **Arducam 64MP (HawkEye) ** (`stage5-arducam-64mp`)
-  - Installs Arducam PiVariety `libcamera` packages.
-  - Appends to `/boot/firmware/config.txt`:
+  - Installs `openscan3-hawkeye-camera-stack`.
+  - The package writes an OpenScan-managed block to `/boot/firmware/config.txt`:
     - `dtoverlay=arducam-64mp`
     - `dtoverlay=vc4-kms-v3d,cma-512` (increases CMA for high-res camera)
-  - See `stage5-arducam-64mp/01-camera-arducam-64mp/01-run.sh`.
+  - Camera stack packages conflict with each other to avoid mixing hardware profiles.
+
+Official pi-gen images include `/etc/openscan3/image-build.json` for support
+triage. If that file is missing, the installation did not come from the
+OpenScan pi-gen image build pipeline.
 
 Your build variant is chosen via the `.env` config used at build time (see `camera-configs/*.env`).
 
@@ -233,7 +237,8 @@ We ship `scripts/generate-imager-json.py` to emit both the hosted repository met
   - Check OpenScan3: `systemctl status openscan3` and `journalctl -u openscan3 -e -f`.
 
 - **Camera not detected / errors with libcamera** 
-  - Verify `/boot/firmware/config.txt` contains the correct `dtoverlay` for your variant.
+  - Verify the correct `openscan3-*-camera-stack` package is installed.
+  - Verify `/boot/firmware/config.txt` contains the correct OpenScan-managed `dtoverlay` block for your variant.
   - For 64MP builds ensure the CMA overlay line exists: `dtoverlay=vc4-kms-v3d,cma-512`.
   - Power-cycle after changing overlays.
 

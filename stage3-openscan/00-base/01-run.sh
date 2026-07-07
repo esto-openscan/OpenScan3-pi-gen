@@ -19,7 +19,46 @@ esac
 install -m 644 -D files/usr/share/keyrings/openscan-stable-archive-keyring.gpg "${ROOTFS_DIR}/usr/share/keyrings/openscan-stable-archive-keyring.gpg"
 install -m 644 -D files/usr/share/keyrings/openscan-nightly-archive-keyring.gpg "${ROOTFS_DIR}/usr/share/keyrings/openscan-nightly-archive-keyring.gpg"
 install -m 644 -D files/etc/avahi/services/openscan3.service "${ROOTFS_DIR}/etc/avahi/services/openscan3.service"
-install -m 644 -D files/etc/polkit-1/rules.d/49-openscan.rules "${ROOTFS_DIR}/etc/polkit-1/rules.d/49-openscan.rules"
+
+OPENSCAN_IMAGE_BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+OPENSCAN_IMAGE_REPO_COMMIT="$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
+OPENSCAN_PI_GEN_COMMIT="$(git -C pi-gen rev-parse HEAD 2>/dev/null || printf 'unknown')"
+OPENSCAN_PI_GEN_DIRTY="$(
+  if git -C pi-gen diff --quiet --ignore-submodules -- 2>/dev/null; then
+    printf 'false'
+  else
+    printf 'true'
+  fi
+)"
+
+install -d -m 0755 "${ROOTFS_DIR}/etc/openscan3"
+OPENSCAN_IMAGE_BUILD_DATE="$OPENSCAN_IMAGE_BUILD_DATE" \
+OPENSCAN_IMAGE_REPO_COMMIT="$OPENSCAN_IMAGE_REPO_COMMIT" \
+OPENSCAN_PI_GEN_COMMIT="$OPENSCAN_PI_GEN_COMMIT" \
+OPENSCAN_PI_GEN_DIRTY="$OPENSCAN_PI_GEN_DIRTY" \
+OPENSCAN_APT_CHANNEL="$OPENSCAN_APT_CHANNEL" \
+CAMERA_TYPE="${CAMERA_TYPE:-unknown}" \
+IMG_NAME="${IMG_NAME:-unknown}" \
+TARGET_HOSTNAME="${TARGET_HOSTNAME:-openscan}" \
+python3 - <<'PY' > "${ROOTFS_DIR}/etc/openscan3/image-build.json"
+import json
+import os
+
+payload = {
+    "vendor": "OpenScan",
+    "image": "openscan3-pi-gen",
+    "official_pi_gen_image": True,
+    "image_family": os.environ["CAMERA_TYPE"],
+    "channel": os.environ["OPENSCAN_APT_CHANNEL"],
+    "image_name": os.environ["IMG_NAME"],
+    "target_hostname": os.environ["TARGET_HOSTNAME"],
+    "build_date": os.environ["OPENSCAN_IMAGE_BUILD_DATE"],
+    "image_repo_commit": os.environ["OPENSCAN_IMAGE_REPO_COMMIT"],
+    "pi_gen_commit": os.environ["OPENSCAN_PI_GEN_COMMIT"],
+    "pi_gen_dirty": os.environ["OPENSCAN_PI_GEN_DIRTY"] == "true",
+}
+print(json.dumps(payload, indent=2, sort_keys=True))
+PY
 
 cat > "${ROOTFS_DIR}/etc/apt/sources.list.d/openscan.sources" <<EOF
 Types: deb
@@ -34,19 +73,6 @@ rm -rf "${ROOTFS_DIR}/opt/openscan3-src"
 on_chroot <<'EOF'
 set -e
 
-if ! getent group openscan >/dev/null; then
-  addgroup --system openscan
-fi
-if ! getent passwd openscan >/dev/null; then
-  adduser --system --ingroup openscan --home /var/openscan3 --no-create-home --disabled-login openscan
-fi
-
-# Add openscan user to relevant hardware groups
-for grp in camera video render plugdev input i2c spi gpio netdev systemd-journal; do
-  groupadd -f "$grp"
-  adduser openscan "$grp"
-done
-
 apt-get update
 apt-get install -y \
   openscan3-system-config \
@@ -59,36 +85,6 @@ if id -u pi >/dev/null 2>&1; then
   adduser pi openscan || true
 fi
 
-# Create settings directory. Package postinst scripts install defaults without
-# overwriting locally edited files.
-install -d -m 2775 /etc/openscan3
-chown -R openscan:openscan /etc/openscan3
-
-# Ensure group-writable perms and setgid on all subdirs
-find /etc/openscan3 -type d -exec chmod 2775 {} +
-find /etc/openscan3 -type f -exec chmod 664 {} +
-
-# Default ACL so new files remain group-writable for 'openscan'
-setfacl -Rm g::rwX /etc/openscan3
-setfacl -Rdm g::rwX /etc/openscan3
-setfacl -Rm m::rwX /etc/openscan3
-setfacl -Rdm m::rwX /etc/openscan3
-
-# Prepare application log directory for OpenScan3
-install -d -m 2775 /var/log/openscan3
-chown openscan:openscan /var/log/openscan3
-
-# Prepare persistent data directories for projects and community tasks
-install -d -m 2775 /var/openscan3
-install -d -m 2775 /var/openscan3/projects
-install -d -m 2775 /var/openscan3/community-tasks
-chown -R openscan:openscan /var/openscan3
-setfacl -Rm g::rwX /var/openscan3
-setfacl -Rdm g::rwX /var/openscan3
-setfacl -Rm m::rwX /var/openscan3
-setfacl -Rdm m::rwX /var/openscan3
-
-systemctl enable openscan3
 systemctl enable avahi-daemon
 
 # Clean up legacy sudoers files (permissions now handled via polkit / group membership)
