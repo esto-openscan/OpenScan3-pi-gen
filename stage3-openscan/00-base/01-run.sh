@@ -19,46 +19,13 @@ esac
 install -m 644 -D files/usr/share/keyrings/openscan-stable-archive-keyring.gpg "${ROOTFS_DIR}/usr/share/keyrings/openscan-stable-archive-keyring.gpg"
 install -m 644 -D files/usr/share/keyrings/openscan-nightly-archive-keyring.gpg "${ROOTFS_DIR}/usr/share/keyrings/openscan-nightly-archive-keyring.gpg"
 install -m 644 -D files/etc/avahi/services/openscan3.service "${ROOTFS_DIR}/etc/avahi/services/openscan3.service"
-
-OPENSCAN_IMAGE_BUILD_DATE="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-OPENSCAN_IMAGE_REPO_COMMIT="$(git rev-parse HEAD 2>/dev/null || printf 'unknown')"
-OPENSCAN_PI_GEN_COMMIT="$(git -C pi-gen rev-parse HEAD 2>/dev/null || printf 'unknown')"
-OPENSCAN_PI_GEN_DIRTY="$(
-  if git -C pi-gen diff --quiet --ignore-submodules -- 2>/dev/null; then
-    printf 'false'
-  else
-    printf 'true'
-  fi
-)"
-
 install -d -m 0755 "${ROOTFS_DIR}/etc/openscan3"
-OPENSCAN_IMAGE_BUILD_DATE="$OPENSCAN_IMAGE_BUILD_DATE" \
-OPENSCAN_IMAGE_REPO_COMMIT="$OPENSCAN_IMAGE_REPO_COMMIT" \
-OPENSCAN_PI_GEN_COMMIT="$OPENSCAN_PI_GEN_COMMIT" \
-OPENSCAN_PI_GEN_DIRTY="$OPENSCAN_PI_GEN_DIRTY" \
-OPENSCAN_APT_CHANNEL="$OPENSCAN_APT_CHANNEL" \
-CAMERA_TYPE="${CAMERA_TYPE:-unknown}" \
-IMG_NAME="${IMG_NAME:-unknown}" \
-TARGET_HOSTNAME="${TARGET_HOSTNAME:-openscan}" \
-python3 - <<'PY' > "${ROOTFS_DIR}/etc/openscan3/image-build.json"
-import json
-import os
 
-payload = {
-    "vendor": "OpenScan",
-    "image": "openscan3-pi-gen",
-    "official_pi_gen_image": True,
-    "image_family": os.environ["CAMERA_TYPE"],
-    "channel": os.environ["OPENSCAN_APT_CHANNEL"],
-    "image_name": os.environ["IMG_NAME"],
-    "target_hostname": os.environ["TARGET_HOSTNAME"],
-    "build_date": os.environ["OPENSCAN_IMAGE_BUILD_DATE"],
-    "image_repo_commit": os.environ["OPENSCAN_IMAGE_REPO_COMMIT"],
-    "pi_gen_commit": os.environ["OPENSCAN_PI_GEN_COMMIT"],
-    "pi_gen_dirty": os.environ["OPENSCAN_PI_GEN_DIRTY"] == "true",
-}
-print(json.dumps(payload, indent=2, sort_keys=True))
-PY
+if [ -n "${OPENSCAN_IMAGE_BUILD_JSON:-}" ] && [ -f "${OPENSCAN_IMAGE_BUILD_JSON}" ]; then
+  install -m 644 "${OPENSCAN_IMAGE_BUILD_JSON}" "${ROOTFS_DIR}/etc/openscan3/image-build.json"
+else
+  echo "Skipping image-build.json: OPENSCAN_IMAGE_BUILD_JSON is unset or missing"
+fi
 
 cat > "${ROOTFS_DIR}/etc/apt/sources.list.d/openscan.sources" <<EOF
 Types: deb

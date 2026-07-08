@@ -5,6 +5,7 @@ PI_GEN_DIR="pi-gen"
 CONFIG_DIR="build-configs"
 COMMON_ENV="${CONFIG_DIR}/base.env"
 CONFIG_HELPER="scripts/config-loader.sh"
+IMAGE_BUILD_JSON_HELPER="scripts/image-build-json.sh"
 CLEANUP_SCRIPT="scripts/cleanup.sh"
 FINAL_DEPLOY_DIR="${FINAL_DEPLOY_DIR:-deploy}"
 
@@ -15,6 +16,11 @@ fi
 
 if [ ! -f "${CONFIG_HELPER}" ]; then
     echo "Missing config helper script at '${CONFIG_HELPER}'" >&2
+    exit 1
+fi
+
+if [ ! -f "${IMAGE_BUILD_JSON_HELPER}" ]; then
+    echo "Missing image build JSON helper script at '${IMAGE_BUILD_JSON_HELPER}'" >&2
     exit 1
 fi
 
@@ -42,6 +48,8 @@ fi
 
 # shellcheck disable=SC1090
 source "${CONFIG_HELPER}"
+# shellcheck disable=SC1090
+source "${IMAGE_BUILD_JSON_HELPER}"
 
 if command -v sudo >/dev/null 2>&1; then
     SUDO="sudo"
@@ -175,7 +183,15 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
         openscan_apt_channel="nightly"
     fi
 
-    ${SUDO:+$SUDO }CAMERA_TYPE=$CAMERA_TYPE IMG_NAME=$IMG_NAME OPENSCAN_APT_CHANNEL="$openscan_apt_channel" STAGE_LIST="$STAGE_LIST_FOR_BUILD" TARGET_HOSTNAME="${TARGET_HOSTNAME}" "$PI_GEN_DIR"/build.sh
+    image_build_json=".cache/pi-gen/image-build-json/${IMG_NAME}.json"
+    generate_image_build_json "$image_build_json" \
+        "$CAMERA_TYPE" \
+        "$openscan_apt_channel" \
+        "$IMG_NAME" \
+        "$TARGET_HOSTNAME"
+    image_build_json="$(realpath "$image_build_json")"
+
+    ${SUDO:+$SUDO }CAMERA_TYPE=$CAMERA_TYPE IMG_NAME=$IMG_NAME OPENSCAN_APT_CHANNEL="$openscan_apt_channel" OPENSCAN_IMAGE_BUILD_JSON="$image_build_json" STAGE_LIST="$STAGE_LIST_FOR_BUILD" TARGET_HOSTNAME="${TARGET_HOSTNAME}" "$PI_GEN_DIR"/build.sh
 
     copy_sanitized_artifacts "$build_suffix"
 done

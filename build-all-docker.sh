@@ -5,6 +5,7 @@ PI_GEN_DIR="pi-gen"
 CONFIG_DIR="build-configs"
 COMMON_ENV="${CONFIG_DIR}/base.env"
 CONFIG_HELPER="scripts/config-loader.sh"
+IMAGE_BUILD_JSON_HELPER="scripts/image-build-json.sh"
 CLEANUP_SCRIPT="scripts/cleanup.sh"
 BUILD_DOCKER_SCRIPT="${PI_GEN_DIR}/build-docker.sh"
 PROJECT_ROOT="${PWD}"
@@ -41,8 +42,15 @@ if [ ! -f "${CONFIG_HELPER}" ]; then
     exit 1
 fi
 
+if [ ! -f "${IMAGE_BUILD_JSON_HELPER}" ]; then
+    echo "Missing image build JSON helper script at '${IMAGE_BUILD_JSON_HELPER}'" >&2
+    exit 1
+fi
+
 # shellcheck disable=SC1090
 source "${CONFIG_HELPER}"
+# shellcheck disable=SC1090
+source "${IMAGE_BUILD_JSON_HELPER}"
 
 HOST_WORK_DIR="${HOST_WORK_DIR:-${PI_GEN_DIR}/work}"
 HOST_DEPLOY_DIR="${HOST_DEPLOY_DIR:-${PI_GEN_DIR}/deploy}"
@@ -117,6 +125,8 @@ run_docker_build_variant() {
     local cam_config="$4"
     local flavor_label="$5"
     local openscan_apt_channel="$6"
+    local host_image_build_json="${HOST_WORK_DIR}/${img_name}/image-build.json"
+    local container_image_build_json="/pi-gen/work/${img_name}/image-build.json"
 
     local tmp_config
     tmp_config=$(mktemp "${TMPDIR:-/tmp}/pigen-docker-config.XXXXXX")
@@ -162,6 +172,7 @@ run_docker_build_variant() {
     printf 'IMG_NAME="%s"\n' "$img_name" >> "$tmp_config"
     printf 'TARGET_HOSTNAME="%s"\n' "$target_hostname" >> "$tmp_config"
     printf 'OPENSCAN_APT_CHANNEL="%s"\n' "$openscan_apt_channel" >> "$tmp_config"
+    printf 'OPENSCAN_IMAGE_BUILD_JSON="%s"\n' "$container_image_build_json" >> "$tmp_config"
 
     if ! grep -q '^WORK_DIR=' "$tmp_config"; then
         printf 'WORK_DIR="%s"\n' "/pi-gen/work/${img_name}" >> "$tmp_config"
@@ -179,6 +190,12 @@ run_docker_build_variant() {
     if [ -n "$flavor_label" ]; then
         label_suffix=" (${flavor_label})"
     fi
+
+    generate_image_build_json "$host_image_build_json" \
+        "$CAMERA_TYPE" \
+        "$openscan_apt_channel" \
+        "$img_name" \
+        "$target_hostname"
 
     echo "[Docker] Building image '${img_name}'${label_suffix} using '${cam_config}'"
     PIGEN_DOCKER_OPTS="${docker_opts_string}" "${BUILD_DOCKER_SCRIPT}" -c "$config_path"
