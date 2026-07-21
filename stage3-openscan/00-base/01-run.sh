@@ -41,7 +41,9 @@ on_chroot <<'EOF'
 set -e
 
 apt-get update
-apt-get install -y \
+DEBIAN_FRONTEND=noninteractive apt-get install -y \
+  -o Dpkg::Options::=--force-confdef \
+  -o Dpkg::Options::=--force-confold \
   openscan3-system-config \
   openscan3-updater \
   openscan3-firmware \
@@ -53,6 +55,8 @@ if id -u pi >/dev/null 2>&1; then
 fi
 
 systemctl enable avahi-daemon
+systemctl enable openscan3.service
+test "$(systemctl is-enabled openscan3.service)" = "enabled"
 
 # Clean up legacy sudoers files (permissions now handled via polkit / group membership)
 rm -f /etc/sudoers.d/openscan-service
