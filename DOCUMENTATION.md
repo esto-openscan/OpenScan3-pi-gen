@@ -97,7 +97,7 @@ Use the package-owned CLI:
 
 ```bash
 openscan-updater status --json
-openscan-updater update-openscan --dry-run --json
+openscan-updater update --dry-run --json
 ```
 
 The legacy PHP `/admin` updater endpoint is intentionally absent.
@@ -145,7 +145,7 @@ OpenScan runtime updates are package-based. Normal images install the `stable` A
 - CLI:
   ```bash
   openscan-updater status --json
-  openscan-updater update-openscan --dry-run --json
+  openscan-updater update --dry-run --json
   ```
 
 ## Develop Image Git Workflow

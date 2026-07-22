@@ -15,5 +15,5 @@ set -e
 
 test -f /usr/share/keyrings/openscan-nightly-archive-keyring.gpg
 apt-get update
-openscan-updater channel status --json
+openscan-updater channel --json
 EOF
