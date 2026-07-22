@@ -15,7 +15,7 @@ if [ -n "$audit_output" ]; then
 fi
 
 held_packages="$(
-  dpkg-query -W -f='${db:Status-Abbrev} ${binary:Package}\n' \
+  dpkg-query -W -f='${db:Status-Abbrev} ${Package}\n' \
     'libcamera*' 'rpicam*' 'librpicam*' python3-libcamera python3-picamera2 \
     'python3-kms++' 'arducam*' 'pivariety*' 2>/dev/null \
     | awk '$1 == "ii" { print $2 }' | sort -u
@@ -24,10 +24,13 @@ test -n "$held_packages"
 printf '%s\n' "$held_packages" | xargs apt-mark hold
 actual_holds="$(apt-mark showhold)"
 for package in $held_packages; do
-  printf '%s\n' "$actual_holds" | grep -Fxq "$package"
+  if ! printf '%s\n' "$actual_holds" | grep -Fxq "$package"; then
+    echo "Expected camera package to be held: $package" >&2
+    exit 1
+  fi
 done
 
-dpkg-query -W -f='${db:Status-Abbrev} ${binary:Package} ${Version}\n' \
+dpkg-query -W -f='${db:Status-Abbrev} ${Package} ${Version}\n' \
   openscan3-hawkeye-camera-stack \
   libcamera0.7 \
   libcamera-dev \

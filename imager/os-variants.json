@@ -76,7 +76,7 @@
       "is_develop": true
     },
     {
-      "suffix": "hawkeye-experimental_DEVELOP",
+      "suffix": "hawkeye_DEVELOP",
       "camera_type": "arducam-64mp",
       "name": "OpenScan3 (Arducam Hawkeye 64MP) (Develop)",
       "description": "Developer image for the Arducam Hawkeye, please read docs before use!",

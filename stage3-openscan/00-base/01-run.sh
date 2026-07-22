@@ -56,7 +56,9 @@ fi
 
 systemctl enable avahi-daemon
 systemctl enable openscan3.service
+systemctl enable openscan-updaterd.service
 test "$(systemctl is-enabled openscan3.service)" = "enabled"
+test "$(systemctl is-enabled openscan-updaterd.service)" = "enabled"
 
 # Clean up legacy sudoers files (permissions now handled via polkit / group membership)
 rm -f /etc/sudoers.d/openscan-service

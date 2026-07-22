@@ -171,8 +171,8 @@ run_docker_build_variant() {
     printf 'STAGE_LIST="%s"\n' "${container_stage_items[*]}" >> "$tmp_config"
     printf 'IMG_NAME="%s"\n' "$img_name" >> "$tmp_config"
     printf 'TARGET_HOSTNAME="%s"\n' "$target_hostname" >> "$tmp_config"
-    printf 'OPENSCAN_APT_CHANNEL="%s"\n' "$openscan_apt_channel" >> "$tmp_config"
-    printf 'OPENSCAN_IMAGE_BUILD_JSON="%s"\n' "$container_image_build_json" >> "$tmp_config"
+    printf 'export OPENSCAN_APT_CHANNEL="%s"\n' "$openscan_apt_channel" >> "$tmp_config"
+    printf 'export OPENSCAN_IMAGE_BUILD_JSON="%s"\n' "$container_image_build_json" >> "$tmp_config"
 
     if ! grep -q '^WORK_DIR=' "$tmp_config"; then
         printf 'WORK_DIR="%s"\n' "/pi-gen/work/${img_name}" >> "$tmp_config"
@@ -283,10 +283,42 @@ fi
 
 QEMU_BINFMT_DIR="/usr/libexec/qemu-binfmt"
 
-if [ -f /proc/sys/fs/binfmt_misc/qemu-aarch64 ] && ! grep -q "flags:.*F" /proc/sys/fs/binfmt_misc/qemu-aarch64; then
-    echo "Removing non-F binfmt qemu-aarch64 entry (Docker needs the F flag)..."
-    echo -1 | sudo tee /proc/sys/fs/binfmt_misc/qemu-aarch64 > /dev/null
-fi
+ensure_arm64_binfmt() {
+    case "$(uname -m)" in
+        aarch64|arm64|arm*)
+            return 0
+            ;;
+    esac
+
+    local binfmt_entry="/proc/sys/fs/binfmt_misc/qemu-aarch64"
+    if [ -f "${binfmt_entry}" ] \
+        && grep -q '^enabled$' "${binfmt_entry}" \
+        && grep -q '^flags:.*F' "${binfmt_entry}"; then
+        return 0
+    fi
+
+    echo "No Docker-compatible arm64 binfmt handler found. Installing one..."
+    local -a docker_cmd=(docker)
+    if ! docker info >/dev/null 2>&1; then
+        docker_cmd=(sudo docker)
+    fi
+    if ! "${docker_cmd[@]}" run --privileged --rm tonistiigi/binfmt --install arm64; then
+        echo "Failed to install the arm64 binfmt handler with tonistiigi/binfmt." >&2
+        echo "Check that the host kernel supports binfmt_misc and Docker can run privileged containers." >&2
+        return 1
+    fi
+
+    if [ ! -f "${binfmt_entry}" ] \
+        || ! grep -q '^enabled$' "${binfmt_entry}" \
+        || ! grep -q '^flags:.*F' "${binfmt_entry}"; then
+        echo "arm64 binfmt installation completed, but no enabled handler with the F flag was found." >&2
+        return 1
+    fi
+
+    echo "arm64 binfmt handler is ready."
+}
+
+ensure_arm64_binfmt
 
 for cam_config in "${CAM_CONFIGS[@]}"; do
     if [ "$cam_config" = "${COMMON_ENV}" ]; then

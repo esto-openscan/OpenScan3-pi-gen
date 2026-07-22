@@ -18,6 +18,13 @@ production images.
 | `stage6-develop/01-openscan-service` | Injects dev-specific environment variables into the `openscan3` systemd unit via a drop-in. |
 | `stage6-develop/03-dev-access` | Enables SSH and assigns the `openscan` user the default password `openscan`. |
 
+Develop images give the otherwise internal `openscan` account the dedicated
+login home `/home/openscan` with mode `0700`. Runtime data remains in the
+group-writable `/var/openscan3`; using that directory as an SSH home would make
+OpenSSH `StrictModes` reject `authorized_keys`.
+Only Develop images add an sshd match block that permits password authentication
+for this account. Normal images retain the global public-key-only policy.
+
 ## Samba additions
 
 File: `stage6-develop/00-samba-dev/00-run.sh`
