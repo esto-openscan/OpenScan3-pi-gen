@@ -75,13 +75,60 @@ Your build variant is chosen via the `.env` config used at build time (see `came
 
 ## First boot and network access
 
-- **User account (important)**: Use the user you created in Raspberry Pi Imager. Do not create a user named `openscan` — this name is reserved for the internal service account created by the image. If you haven't created a user, you won't be able to SSH into the Pi.
+- **User account (important)**: Use the user you created in Raspberry Pi Imager. Do not create a user named `openscan` — this name is reserved for the internal service account created by the image. If you did not create a user while flashing, provision one from the SD card as described below before attempting to connect over SSH.
 - **Network**:
   - If Wi‑Fi was configured in Raspberry Pi Imager, the Pi will join that network on first boot. If no network is configured, the device will automatically try to connect to a Wi-Fi from a qr code you can generate with your smartphone.
 - **Hostname**: Use the hostname you set in Raspberry Pi Imager. If not set, it defaults to `openscan3-alpha`.
 - **Discovery**:
   - Default hostname is `http://openscan/` and via mDNS it resolves as `http://openscan.local/`.
   - Avahi publishes `_http._tcp` and `_smb._tcp` DNS‑SD records automatically, so Windows/macOS/Linux network browsers show an “OpenScan3” web endpoint and Samba share without extra setup. Changing the hostname (e.g., in Raspberry Pi Imager) propagates to these announcements on next boot.
+
+### Provisioning SSH access after flashing
+
+If an image was flashed without creating a user, use Raspberry Pi OS's standard
+manual headless setup. The authoritative instructions are in the official
+[Raspberry Pi documentation: Manual setup for SSH](https://www.raspberrypi.com/documentation/computers/getting-started.html#manual-setup-for-ssh).
+The summary below only records the OpenScan-specific details.
+
+This recovery procedure also works after an unprovisioned OpenScan image has
+already been booted, provided that its initial user setup has never completed
+successfully:
+
+1. Shut down the scanner, remove the SD card, and insert it into another
+   computer.
+2. Open the FAT partition named `bootfs`.
+3. Create an empty file named `ssh` in the root of that partition.
+4. Generate a SHA-512 password hash as described by Raspberry Pi:
+
+   ```bash
+   openssl passwd -6
+   ```
+
+5. Create `userconf.txt` in the root of `bootfs` with exactly one line:
+
+   ```text
+   <username>:<encrypted-password>
+   ```
+
+6. Reinsert the SD card and boot the scanner. Raspberry Pi OS consumes both
+   files, provisions the user, and enables SSH.
+7. Connect with the provisioned username, for example:
+
+   ```bash
+   ssh <username>@openscan.local
+   ```
+
+Do not use `openscan` as the username; it is reserved for the internal service
+account. For compatibility with the `userconf-pi` version shipped in the
+current Trixie images, use a username beginning with a lowercase letter and
+containing only lowercase letters, digits, and hyphens. After logging in,
+configure SSH public-key authentication and disable password authentication
+if the device will be accessible from an untrusted network.
+
+`userconf.txt` is an initial-user provisioning mechanism, not a general user
+manager. After initial user setup has completed successfully, Raspberry Pi OS
+disables the corresponding setup service. Add further users from an existing
+administrator account using the standard Raspberry Pi OS tools.
 
 ## Accessing the web UI
 
