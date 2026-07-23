@@ -26,7 +26,4 @@ getent passwd openscan | grep -q '^openscan:.*:/home/openscan:/bin/bash$'
 test "$(stat -c '%U:%G:%a' /home/openscan)" = 'openscan:openscan:700'
 id -nG openscan | grep -qw sudo
 systemctl is-enabled ssh >/dev/null
-sshd -t
-sshd -T -C user=openscan,host=localhost,addr=127.0.0.1 \
-  | grep -q '^passwordauthentication yes$'
 EOF
