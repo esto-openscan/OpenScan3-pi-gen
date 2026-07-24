@@ -6,7 +6,26 @@ set -e
 echo "Installing OpenScan Hawkeye camera stack..."
 
 apt-get update
-apt-get install -y openscan3-hawkeye-camera-stack
+stack_package="openscan3-hawkeye-camera-stack"
+stack_version="$(apt-cache policy "$stack_package" | awk '/Candidate:/ { print $2; exit }')"
+[ -n "$stack_version" ] && [ "$stack_version" != "(none)" ]
+stack_depends="$(apt-cache show "$stack_package=$stack_version" | sed -n 's/^Depends: //p' | head -n 1)"
+mapfile -t stack_packages < <(
+  python3 - "$stack_depends" <<'PY'
+import re
+import sys
+
+for dependency in sys.argv[1].split(","):
+    match = re.fullmatch(r"\s*([a-zA-Z0-9.+:-]+)\s+\(=\s*([^)]+)\)\s*", dependency)
+    if match:
+        print(f"{match.group(1)}={match.group(2)}")
+PY
+)
+apt-get install -y \
+  --allow-downgrades \
+  --allow-change-held-packages \
+  "$stack_package=$stack_version" \
+  "${stack_packages[@]}"
 
 audit_output="$(dpkg --audit)"
 if [ -n "$audit_output" ]; then

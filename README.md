@@ -47,6 +47,9 @@ git submodule update --init --recursive
 
 # or build via docker (runs inside container; still fine to call prepare-build first)
 ./build-all-docker.sh generic imx519
+
+# build only the nightly/develop IMX519 image
+./build-all-docker.sh --develop-only imx519
 ```
 
 Environment variables inside each `.env` are exported before launching `pi-gen/build.sh`. Customize or add new configs by copying an existing file in `build-configs/` and adjusting values. The Docker helper `build-all-docker.sh` generates a temporary config per camera and calls `pi-gen/build-docker.sh -c …`; deployment artifacts still land under `pi-gen/deploy/`.
@@ -97,6 +100,7 @@ Environment loading is handled by `scripts/config-loader.sh`. Each run exports t
 Containerized variant that invokes `pi-gen/build-docker.sh -c <temp-config>` per camera:
 
 - Accepts the same positional arguments and flags as `build-all.sh` (`--skip-cleanup`, `--with-develop`, `.env` paths or short names).
+- `./build-all-docker.sh --develop-only imx519` builds only the nightly/develop variant and skips the stable image.
 - Creates a temporary, per-camera config file with the resolved `STAGE_LIST`, `IMG_NAME`, and `TARGET_HOSTNAME`.
 - Exposes work/deploy/cache directories via bind mounts (`$PI_GEN_DIR/work`, `$PI_GEN_DIR/deploy`, `.cache/pi-gen/apt`) so artifacts persist on the host.
 

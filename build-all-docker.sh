@@ -10,6 +10,7 @@ CLEANUP_SCRIPT="scripts/cleanup.sh"
 BUILD_DOCKER_SCRIPT="${PI_GEN_DIR}/build-docker.sh"
 PROJECT_ROOT="${PWD}"
 ENABLE_STAGE6=0
+DEVELOP_ONLY=0
 SKIP_CLEANUP=0
 
 if [ ! -d "${PI_GEN_DIR}" ]; then
@@ -69,6 +70,10 @@ if [ "$#" -gt 0 ]; then
         case "$arg" in
             --with-develop)
                 ENABLE_STAGE6=1
+                ;;
+            --develop-only)
+                ENABLE_STAGE6=1
+                DEVELOP_ONLY=1
                 ;;
             --skip-cleanup)
                 SKIP_CLEANUP=1
@@ -345,12 +350,19 @@ for cam_config in "${CAM_CONFIGS[@]}"; do
     base_stage_list="${STAGE_LIST}"
     base_img_name="${IMG_NAME}"
 
-    build_stage_lists=("${base_stage_list}")
-    build_img_names=("${base_img_name}")
-    build_labels=("")
-    build_channels=("stable")
+    if [ "$DEVELOP_ONLY" -eq 1 ]; then
+        build_stage_lists=("${base_stage_list} stage6-develop")
+        build_img_names=("${base_img_name}_DEVELOP")
+        build_labels=("develop")
+        build_channels=("nightly")
+    else
+        build_stage_lists=("${base_stage_list}")
+        build_img_names=("${base_img_name}")
+        build_labels=("")
+        build_channels=("stable")
+    fi
 
-    if [ "$ENABLE_STAGE6" -eq 1 ]; then
+    if [ "$ENABLE_STAGE6" -eq 1 ] && [ "$DEVELOP_ONLY" -eq 0 ]; then
         build_stage_lists+=("${base_stage_list} stage6-develop")
         build_img_names+=("${base_img_name}_DEVELOP")
         build_labels+=("develop")
