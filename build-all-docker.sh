@@ -302,11 +302,20 @@ ensure_arm64_binfmt() {
         return 0
     fi
 
-    echo "No Docker-compatible arm64 binfmt handler found. Installing one..."
+    echo "No Docker-compatible arm64 binfmt handler found. Reinstalling it..."
     local -a docker_cmd=(docker)
     if ! docker info >/dev/null 2>&1; then
         docker_cmd=(sudo docker)
     fi
+    # tonistiigi/binfmt leaves an existing qemu-aarch64 registration untouched.
+    # Remove it first: otherwise a handler without the required F flag keeps
+    # being reported as "already registered" and cannot be repaired.
+    if ! "${docker_cmd[@]}" run --privileged --rm tonistiigi/binfmt --uninstall qemu-aarch64; then
+        # No registration may exist at all. Attempt the installation either way;
+        # its result and the F-flag check below remain authoritative.
+        echo "Existing arm64 binfmt handler could not be removed; attempting installation anyway." >&2
+    fi
+
     if ! "${docker_cmd[@]}" run --privileged --rm tonistiigi/binfmt --install arm64; then
         echo "Failed to install the arm64 binfmt handler with tonistiigi/binfmt." >&2
         echo "Check that the host kernel supports binfmt_misc and Docker can run privileged containers." >&2
