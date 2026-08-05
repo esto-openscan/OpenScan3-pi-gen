@@ -10,7 +10,7 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 - Open a browser to `http://openscan/` or the Pi’s IP.
 - You’ll land on the OpenScan3-Client dashboard (served at `/`).
 - API is available on the device at `http://<pi>/api/` (proxied by nginx) and directly at `http://<pi>:8000/latest`.
-- API documentation is available at `http://<pi>:api/latest/docs`.
+- API documentation is available at `http://<pi>/api/latest/docs`.
 ---
 
 ## What’s in the image
@@ -29,11 +29,15 @@ This guide explains how to use the Raspberry Pi image produced by this repositor
 - **nginx reverse proxy**
   - Installed and configured by `openscan3-system-config`.
   - Package-owned site `/etc/nginx/sites-available/openscan3.conf` proxies `/api` to the OpenScan3 FastAPI backend (`127.0.0.1:8000`) and serves the SPA from `/usr/share/openscan3-client`.
+  - It also exposes the independent updater recovery UI at `/recovery/` and
+    redirects the legacy `/admin` path there.
 
 - **OpenScan3 system configuration**
   - Installed from the signed OpenScan APT repository as `openscan3-system-config`.
   - Owns the nginx site, OpenScan APT public key and source file, update policy defaults, updater sudoers bridge, tmpfiles directories, and logrotate defaults.
-  - Replaces the old pi-gen-owned nginx/admin glue. The legacy PHP `/admin` updater is not part of the image.
+  - Replaces the old pi-gen-owned nginx/admin glue. The legacy PHP updater is
+    not part of the image; `/admin` is retained only as a redirect to
+    `/recovery/`.
 
 - **Persistent settings**
   - OpenScan settings are stored in `/etc/openscan3` (created and made group-writable by `stage3-openscan/00-base/01-run.sh`).
@@ -71,7 +75,8 @@ Official pi-gen images include `/etc/openscan3/image-build.json` for support
 triage. If that file is missing, the installation did not come from the
 OpenScan pi-gen image build pipeline.
 
-Your build variant is chosen via the `.env` config used at build time (see `camera-configs/*.env`).
+Your build variant is chosen via the `.env` config used at build time (see
+`build-configs/*.env`).
 
 ## First boot and network access
 
@@ -137,17 +142,9 @@ administrator account using the standard Raspberry Pi OS tools.
 - FastAPI generated OpenAPI docs: `http://<pi>/api/latest/docs`
 - OpenAPI JSON: `http://<pi>/api/latest/openapi.json`
 - Typical endpoints consumed by the SPA: `/latest/device/info`, `/latest/projects`, and other REST/WS routes exposed by the firmware.
-
-## Updater
-
-Use the package-owned CLI:
-
-```bash
-openscan-updater status --json
-openscan-updater update --dry-run --json
-```
-
-The legacy PHP `/admin` updater endpoint is intentionally absent.
+- Recovery UI: `http://<pi>/recovery/` (also reached through `/admin`). It is
+  served by `openscan-updaterd`, so it remains available while the firmware
+  service is restarted during an update.
 
 ## Services and logs
 
@@ -156,6 +153,7 @@ Run these on the Pi (SSH or local):
 - **Status**
   - `systemctl status openscan3`
   - `systemctl status nginx`
+  - `systemctl status openscan-updaterd`
 
 - **Start/Stop/Restart**
   - `sudo systemctl restart openscan3`
@@ -164,6 +162,7 @@ Run these on the Pi (SSH or local):
 - **Logs**
   - `journalctl -u openscan3 -e -f`
   - `journalctl -u nginx -e -f`
+  - `journalctl -u openscan-updaterd -e -f`
 
 ## File and directory layout (key locations)
 
@@ -183,17 +182,21 @@ Run these on the Pi (SSH or local):
 - Develop helper config, if enabled: `/etc/openscan3-dev/config.env`
 - Develop service override, if enabled: `/etc/systemd/system/openscan3.service.d/20-dev-override.conf`
 
-## Updating OpenScan3 (application code)
+## Updating OpenScan3
 
 OpenScan runtime updates are package-based. Normal images install the `stable` APT channel from `https://firmware.openscan.eu/apt`; develop images install the `nightly` channel. Switching channels changes future update candidates only and does not downgrade already installed packages.
 
-### Updater
+Use the package-owned CLI to inspect the installed state or run the fixed
+OpenScan update preflight:
 
-- CLI:
-  ```bash
-  openscan-updater status --json
-  openscan-updater update --dry-run --json
-  ```
+```bash
+openscan-updater status --json
+openscan-updater update --dry-run --json
+```
+
+For appliance recovery, use `http://<pi>/recovery/` or the corresponding
+`sudo openscan-updater repair --json` command. Do not use generic APT commands
+to switch camera-stack providers.
 
 ## Develop Image Git Workflow
 
@@ -236,22 +239,25 @@ Re-enable an already prepared checkout:
 sudo openscan-dev enable
 ```
 
-The legacy PHP `/admin` updater is intentionally not used for this workflow. Git repo URL and branch are configured through `openscan-dev` and `/etc/openscan3-dev/config.env`.
+The legacy PHP updater is not used for this workflow. Git repo URL and branch
+are configured through `openscan-dev` and `/etc/openscan3-dev/config.env`.
 
 ## Flashing the image
 
-- **Locate the image**: Find the generated image in `pi-gen/deploy/` (`.img`, `.img.xz`, or `.zip`).
+- **Locate the image**: The build wrappers export release artifacts to
+  `deploy/` (`.img`, `.img.xz`, or `.zip`). Raw pi-gen output remains in
+  `pi-gen/deploy/`.
 
 ### Optional: generate a Raspberry Pi Imager manifest (online + local)
 
 We ship `scripts/generate-imager-json.py` to emit both the hosted repository metadata (`imager/repo.json`) _and_ a manifest that points at your locally downloaded artifacts so the customization wizard stays enabled even when you select "Use custom".
 
-1. Build or download your OpenScan images so they exist in `pi-gen/deploy/`.
+1. Build or download your OpenScan images so they exist in `deploy/`.
 2. Generate the manifests:
 
    ```bash
    ./scripts/generate-imager-json.py \
-     --deploy-dir pi-gen/deploy \
+     --deploy-dir deploy \
      --local-manifest
    ```
 
@@ -295,4 +301,5 @@ We ship `scripts/generate-imager-json.py` to emit both the hosted repository met
 ## Notes for advanced users
 
 - The upstream pi-gen defaults include cloud-init support (see `pi-gen/README.md`). If your build used `ENABLE_CLOUD_INIT=1`, cloud-init will apply any config placed on the boot partition at first boot.
-- Stage order per image is controlled by the `.env` you chose (see `camera-configs/*.env`, variable `STAGE_LIST`).
+- Stage order per image is controlled by the `.env` you chose (see
+  `build-configs/*.env`, variable `STAGE_LIST`).

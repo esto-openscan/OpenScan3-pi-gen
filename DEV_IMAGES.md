@@ -1,55 +1,81 @@
 # OpenScan3 Develop Images
 
-This document summarizes the additional steps that are applied when building the
-`stage6-develop` image variant. These changes support local firmware
-development, rapid iteration, and debugging, and they do **not** ship in regular
-production images.
+Develop images are built by adding `stage6-develop` with
+`./build-all.sh --with-develop <variant>` or
+`./build-all-docker.sh --with-develop <variant>`. They boot the signed,
+APT-installed OpenScan runtime from the `nightly` suite and add tools for
+testing a firmware checkout on the device. None of these additions belong in a
+production image.
 
-> Security note: develop images expose writable Samba shares, automatic task
-> discovery settings which means arbitrary code execution, and other debug
-> conveniences like enabled ssh with default password. This is not suitable for production. 
-> Use them only inside trusted, isolated networks.
+> Security warning: a Develop image enables SSH, gives the internal
+> `openscan` account the known password `openscan` and membership in `sudo`,
+> enables password authentication for that account, and exposes writable guest
+> Samba shares. Task autodiscovery also permits test tasks to replace built-in
+> task names. Use these images only on a trusted, isolated network; never ship
+> or deploy one as a production scanner image.
 
-## Stage overview
+## Added stages
 
-| Stage | Purpose |
-|-------|---------|
-| `stage6-develop/00-samba-dev` | Adds extra Samba exports for development assets and data. |
-| `stage6-develop/01-openscan-service` | Injects dev-specific environment variables into the `openscan3` systemd unit via a drop-in. |
-| `stage6-develop/03-dev-access` | Enables SSH and assigns the `openscan` user the default password `openscan`. |
+| Stage | Effect |
+| --- | --- |
+| `00-channel-nightly` | Replaces the package source with the signed `nightly` suite and validates it with `openscan-updater channel --json`. |
+| `00-samba-dev` | Adds development, community-task, and read-only log shares. |
+| `01-openscan-service` | Adds task-autodiscovery environment variables through a systemd drop-in. |
+| `02-samba-overrides` | Makes the normal projects share writable for Develop images. |
+| `03-dev-access` | Enables SSH and configures the `openscan` service account for interactive development access. |
+| `04-openscan-dev-deploy` | Installs the `openscan-dev` checkout/deployment helper. |
 
-Develop images give the otherwise internal `openscan` account the dedicated
-login home `/home/openscan` with mode `0700`. Runtime data remains in the
-group-writable `/var/openscan3`; using that directory as an SSH home would make
-OpenSSH `StrictModes` reject `authorized_keys`.
-Only Develop images add an sshd match block that permits password authentication
-for this account. Normal images retain the global public-key-only policy.
+## Samba shares
 
-## Samba additions
+All images provide the guest-readable `[openscan-projects]` share at
+`/var/openscan3/projects`. In Develop images, that share is rewritten to be
+writable. The following additional shares are appended:
 
-File: `stage6-develop/00-samba-dev/00-run.sh`
+| Share | Path | Access |
+| --- | --- | --- |
+| `[openscan-community-tasks]` | `/var/openscan3/community-tasks` | guest read/write |
+| `[openscan-dev]` | `/opt/openscan3-dev` | guest read/write |
+| `[openscan-logs]` | `/var/log/openscan3` | guest read-only |
 
-The following writable shares are appended to `/etc/samba/smb.conf` inside the
-image:
+Writable shares force the `openscan` user and group and use `0664` file and
+`2775` directory masks. The log share is read-only, even though it also forces
+the OpenScan account for Samba access.
 
-- **`[openscan3-client]`** → `/opt/openscan3-client`
-  - Allows editing the SPA bundle over the network.
-- **`[openscan-community-tasks]`** → `/var/openscan3/community-tasks`
-  - Mirrors the persistent community task directory for quick sync.
-- **`[openscan-dev]`** → `/opt/openscan3`
-  - Exposes the firmware checkout so developers can push/pull changes remotely.
-- **`[openscan-logs]`** → `/var/log/openscan3`
-  - Read-only access to runtime logs for quick tailing over the network without SSH.
+## Firmware checkout workflow
 
-All three shares inherit `force user/group = openscan` and `0664/2775` masks so
-files created from a Samba client have the expected permissions.
+`openscan-dev` leaves the package-owned runtime intact until you explicitly
+deploy a checkout. It clones or updates its configured Git repository at
+`/opt/openscan3-dev/src`, creates `/opt/openscan3-dev/venv`, and writes the
+following service override:
 
-## Task discovery flags
+```text
+/etc/systemd/system/openscan3.service.d/20-dev-override.conf
+```
 
-File: `stage6-develop/01-openscan-service/00-run.sh`
+The override runs the firmware from that checkout. Return to the packaged
+runtime at any time with `sudo openscan-dev disable`.
 
-This stage writes `/etc/systemd/system/openscan3.service.d/10-dev-task-flags.conf`
-with the following environment overrides:
+```bash
+# Inspect configured source and override state
+openscan-dev status
+
+# Deploy the default OpenScan firmware branch
+sudo openscan-dev deploy
+
+# Deploy a fork or a branch
+sudo openscan-dev deploy \
+  --repo https://github.com/your-user/OpenScan3.git \
+  --branch feature/my-change
+
+# Use the existing checkout again, or disable it
+sudo openscan-dev enable
+sudo openscan-dev disable
+```
+
+## Task discovery
+
+`stage6-develop/01-openscan-service` writes
+`/etc/systemd/system/openscan3.service.d/10-dev-task-flags.conf`:
 
 ```ini
 [Service]
@@ -57,32 +83,14 @@ Environment="OPENSCAN_TASK_AUTODISCOVERY=1"
 Environment="OPENSCAN_TASK_OVERRIDE_ON_CONFLICT=1"
 ```
 
-Using a systemd drop-in keeps the base unit (`stage3-openscan/00-base/.../openscan3.service`)
-untouched. These variables enable automatic registration of tasks and allow
-community tasks to override built-in task names when necessary, which is helpful
-for experimental development.
+This is intentional only for development. It makes externally supplied task
+definitions discoverable and allows a discovered task to replace an existing
+name.
 
-## FastAPI reload workflow
+## Relevant ownership boundaries
 
-The base service unit (`stage3-openscan/00-base/files/etc/systemd/system/openscan3.service`)
-starts FastAPI via `openscan3 serve --root-path /api --reload-trigger`. The CLI maps this flag
-to uvicorn's file-watching reload mode and points it at the firmware checkout's
-`.reload-trigger` sentinel. When developing inside the `stage6-develop` image, touching that
-file (or using `/latest/develop/restart`) forces uvicorn to reload so code changes are applied
-immediately without rebooting or restarting the service.
-
-## Lifecycle notes
-
-- The drop-in and extra Samba shares exist **only** in images that include
-  `stage6-develop` in their `STAGE_LIST`.
-- Production images continue to use the base paths (`/var/openscan3/projects`
-  share only) and default task discovery settings.
-- Develop images ship with SSH enabled and the `openscan` account set to the
-  default password `openscan`. Change it immediately if the device leaves a
-  trusted network.
-
-## Related files
-
-- `stage3-openscan/01-samba/files/etc/samba/smb.conf` – base Samba config used in all builds.
-- `stage3-openscan/00-base/files/etc/systemd/system/openscan3.service` – base service unit before drop-ins.
-- `stage6-develop/prerun.sh` – ensures the previous stage artifacts are copied before applying develop tweaks.
+The base `openscan3.service`, nginx configuration, updater, and runtime files
+are owned by Debian packages installed in `stage3-openscan`; they are not copied
+from a pi-gen service-unit directory. The Develop stages add only drop-ins,
+Samba/SSH configuration, and the `openscan-dev` helper around that package-owned
+baseline.
